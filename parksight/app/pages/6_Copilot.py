@@ -44,19 +44,25 @@ with st.expander("🔒 How this stays safe — the LLM can't hallucinate numbers
         "code, so it cannot fabricate a statistic. If Claude is unavailable the rule router takes "
         "over with identical grounding, so the demo never fails.")
 
+def _set_pending(q):
+    st.session_state["pending"] = q
+
+
+def _clear_chat():
+    st.session_state["chat"] = []
+
+
 st.markdown("**Try:**")
 cols = st.columns(3)
 for i, q in enumerate(engine.SUGGESTIONS):
-    if cols[i % 3].button(q, key=f"_btn_sg{i}", use_container_width=True):
-        st.session_state["pending"] = q
+    cols[i % 3].button(q, key=f"_btn_sg{i}", use_container_width=True,
+                       on_click=_set_pending, args=(q,))
 
 if "chat" not in st.session_state:
     st.session_state["chat"] = []
 
 if st.session_state["chat"]:
-    if st.button("🗑️ Clear conversation", key="_btn_clear_chat"):
-        st.session_state["chat"] = []
-        st.rerun()
+    st.button("🗑️ Clear conversation", key="_btn_clear_chat", on_click=_clear_chat)
 
 for role, content, extra in st.session_state["chat"]:
     with st.chat_message(role):

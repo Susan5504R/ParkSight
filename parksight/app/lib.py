@@ -127,23 +127,28 @@ def page_header(title, subtitle=""):
         st.caption(subtitle)
 
 
+# Prefixes of the page-state keys we OWN and want to survive multipage navigation.
+# persist_state only ever self-assigns these — never a button, download_button,
+# text_input, chat, or any Streamlit-internal key. This is an explicit allowlist
+# (not a blocklist) so newer Streamlit versions, which forbid self-writing command
+# widget keys (raising StreamlitValueAssignmentNotAllowedError), can never be tripped
+# by a key we didn't anticipate.
+_PERSIST_PREFIXES = ("pri_", "map_", "pcis_", "fc_", "sim_", "off_", "_pk_")
+
+
 def persist_state():
-    """Keep widget values alive across multipage navigation.
+    """Keep our page-state alive across multipage navigation.
 
     Streamlit garbage-collects a widget's key from session_state on any run where
     that widget isn't rendered (i.e. when you're on another page). Re-assigning each
-    key to itself marks it 'active' for the current run so it survives. This MUST run
-    before any widget on the page is instantiated (we call it from common_sidebar,
-    which every page invokes near the top)."""
+    key to itself marks it 'active' for the current run so it survives. We restrict
+    this to keys we own (see ``_PERSIST_PREFIXES``); transient command widgets such
+    as buttons are intentionally NOT persisted (they're momentary) and must never be
+    self-written, or newer Streamlit raises StreamlitValueAssignmentNotAllowedError.
+    MUST run before any widget on the page is instantiated (called from
+    common_sidebar / Home, near the top)."""
     for k in list(st.session_state.keys()):
-        # Skip keys that Streamlit forbids assigning via session_state. Command
-        # widgets (button / download_button / form_submit_button) raise
-        # StreamlitValueAssignmentNotAllowedError the moment a self-write marks
-        # their key 'user-set', so re-rendering the widget blows up. They're
-        # momentary and never need to survive navigation anyway. Convention:
-        # give every keyed button a "_btn_" prefix so it is auto-excluded here.
-        if (k.startswith("FormSubmitter") or k.startswith("$$")
-                or k.startswith("_btn_")):
+        if not k.startswith(_PERSIST_PREFIXES):
             continue
         try:
             st.session_state[k] = st.session_state[k]
