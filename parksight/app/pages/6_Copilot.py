@@ -17,11 +17,37 @@ if not lib.artifacts_exist():
 lib.page_header("🤖 ParkSight Copilot",
                 "Ask in plain English — answers are computed from the data, never hallucinated.")
 
-has_key = bool(os.getenv("ANTHROPIC_API_KEY"))
-st.caption(("🟢 Claude NL understanding is ON (claude-sonnet-4-6) — questions are parsed by "
-            "Claude, then executed on real analytics." if has_key else
-            "🟡 Running the deterministic engine (set ANTHROPIC_API_KEY to enable Claude's "
-            "free-form NL understanding). Either way, every number is grounded in the dataset."))
+has_claude = bool(os.getenv("ANTHROPIC_API_KEY"))
+has_gemini = bool(os.getenv("GOOGLE_API_KEY"))
+has_key    = has_claude or has_gemini
+
+if has_claude:
+    st.caption("🟢 Claude NL understanding is ON (claude-sonnet-4-6) — questions are parsed by "
+               "Claude, then executed on real analytics.")
+elif has_gemini:
+    st.caption("🟢 Gemini NL understanding is ON (gemini-1.5-flash) — questions are parsed by "
+               "Gemini, then executed on real analytics.")
+else:
+    st.caption("🟡 Running the deterministic engine. Set **ANTHROPIC_API_KEY** or "
+               "**GOOGLE_API_KEY** to enable AI free-form NL understanding. "
+               "Either way, every number is grounded in the dataset.")
+
+with st.sidebar:
+    st.markdown("### 🔑 API Keys *(optional)*")
+    st.caption("Set one to unlock AI-powered free-form questions. Both keys are session-only — never stored.")
+    anthropic_input = st.text_input("Anthropic API Key", type="password",
+                                    placeholder="sk-ant-...",
+                                    value=os.getenv("ANTHROPIC_API_KEY", ""))
+    gemini_input    = st.text_input("Google Gemini API Key", type="password",
+                                    placeholder="AIza...",
+                                    value=os.getenv("GOOGLE_API_KEY", ""))
+    if anthropic_input:
+        os.environ["ANTHROPIC_API_KEY"] = anthropic_input
+        has_claude = True; has_key = True
+    if gemini_input:
+        os.environ["GOOGLE_API_KEY"] = gemini_input
+        if not has_claude:
+            has_gemini = True; has_key = True
 
 with st.expander("🔒 How this stays safe — the LLM can't hallucinate numbers or run code"):
     st.markdown(
@@ -59,7 +85,7 @@ if prompt:
         st.markdown(prompt)
     with st.chat_message("assistant"):
         with st.spinner("Analysing the data…"):
-            res = engine.answer(prompt, use_claude=has_key)
+            res = engine.answer(prompt, use_ai=has_key)
         st.markdown(res["text"])
         if res["table"] is not None:
             st.dataframe(res["table"], hide_index=True, use_container_width=True)

@@ -195,11 +195,16 @@ streamlit run parksight/app/Home.py
 Open http://localhost:8501. **The app works out-of-the-box** using the committed artifacts in
 `parksight/data/processed/` — you do **not** need the raw CSV to run the demo.
 
-**Optional — enable Claude in the Copilot:**
+**Optional — enable AI NL understanding in the Copilot (pick one):**
 ```bash
-export ANTHROPIC_API_KEY=sk-...      # Windows: $env:ANTHROPIC_API_KEY="sk-..."
+# Option A — Anthropic Claude (recommended)
+export ANTHROPIC_API_KEY=sk-ant-...      # Windows: $env:ANTHROPIC_API_KEY="sk-ant-..."
+
+# Option B — Google Gemini (free-tier friendly fallback)
+export GOOGLE_API_KEY=AIza...            # Windows: $env:GOOGLE_API_KEY="AIza..."
 ```
-Without a key, the Copilot runs a deterministic engine — answers are still 100% grounded in the data.
+You can also paste either key directly in the **Copilot sidebar** during the session — no restart needed.
+Without any key the Copilot runs a deterministic engine — answers are still 100% grounded in the data.
 
 ## Testing
 

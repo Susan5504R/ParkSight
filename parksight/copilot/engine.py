@@ -1,12 +1,13 @@
 """
 ParkSight AI Copilot — natural-language interface over the precomputed analytics.
 
-Two layers:
-  1. Deterministic intent engine (always available, 100% grounded, demo-safe).
-  2. Optional Claude layer: when ANTHROPIC_API_KEY is set, Claude parses free-form
-     questions into a structured {intent, params} call, which is then executed by
-     the SAME deterministic functions — so answers are always backed by real numbers
-     (no hallucinated statistics). Falls back to layer 1 on any error.
+Three layers (tried in order):
+  1. Claude  — when ANTHROPIC_API_KEY is set.
+  2. Gemini  — when GOOGLE_API_KEY is set (fallback if no Claude key).
+  3. Deterministic intent engine — always available, 100% grounded, demo-safe.
+
+Both AI layers only map NL → {intent, params} from a whitelist. Execution always
+runs through the same audited deterministic functions — no hallucinated statistics.
 
 Returns a dict: {"text": str, "table": DataFrame|None, "map": DataFrame|None, "engine": str}
 """
@@ -22,7 +23,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from parksight import config as C  # noqa: E402
 
-CLAUDE_MODEL = "claude-sonnet-4-6"   # fast + cheap; grounded execution keeps it accurate
+CLAUDE_MODEL  = "claude-sonnet-4-6"    # fast + cheap; grounded execution keeps it accurate
+GEMINI_MODEL  = "gemini-1.5-flash"    # free-tier friendly fallback
 
 
 @lru_cache(maxsize=None)
@@ -224,22 +226,54 @@ def _execute(plan):
     return txt, tbl, {"intent": intent, "params": params}
 
 
-def answer(q, use_claude=True):
-    """Main entry. Claude (or rules) parses NL → structured plan; the plan is then
-    executed deterministically on real analytics — so every number is grounded."""
+def answer(q, use_ai=True):
+    """Main entry. An AI layer (Claude → Gemini → rules) maps NL → structured plan;
+    the plan is always executed deterministically on real analytics."""
     parser = "deterministic router"
-    if use_claude and os.getenv("ANTHROPIC_API_KEY"):
-        try:
-            plan = _claude_plan(q)
-            parser = f"Claude ({CLAUDE_MODEL})"
-        except Exception as e:  # noqa: BLE001
+    if use_ai:
+        if os.getenv("ANTHROPIC_API_KEY"):
+            try:
+                plan = _claude_plan(q)
+                parser = f"Claude ({CLAUDE_MODEL})"
+            except Exception as e:  # noqa: BLE001
+                plan = _rule_route(q)
+                parser = f"deterministic router (Claude error: {type(e).__name__})"
+        elif os.getenv("GOOGLE_API_KEY"):
+            try:
+                plan = _gemini_plan(q)
+                parser = f"Gemini ({GEMINI_MODEL})"
+            except Exception as e:  # noqa: BLE001
+                plan = _rule_route(q)
+                parser = f"deterministic router (Gemini error: {type(e).__name__})"
+        else:
             plan = _rule_route(q)
-            parser = f"deterministic router (Claude error: {type(e).__name__})"
     else:
         plan = _rule_route(q)
     txt, tbl, used = _execute(plan)
     return {"text": txt, "table": tbl, "map": None,
             "engine": f"{parser} → grounded analytics", "plan": used, "parser": parser}
+
+
+# keep old kwarg name working for any callers that pass use_claude=True/False
+def _answer_compat(q, use_claude=True):
+    return answer(q, use_ai=use_claude)
+
+
+def _gemini_plan(q):
+    """Use Gemini ONLY to map NL → {intent, params}. Same whitelist guardrail as Claude."""
+    import google.generativeai as genai
+    genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+    model = genai.GenerativeModel(GEMINI_MODEL)
+    prompt = (
+        "You route a traffic-enforcement analytics question to ONE intent. "
+        "Reply ONLY with compact JSON: {\"intent\":..., \"params\":{...}}. "
+        f"Valid intents and params: {json.dumps(INTENT_SPEC)}. "
+        f"Infer sensible params from the question.\n\nQuestion: {q}"
+    )
+    response = model.generate_content(prompt)
+    raw = response.text
+    m = re.search(r"\{.*\}", raw, re.S)
+    return json.loads(m.group(0))
 
 
 def _claude_plan(q):
