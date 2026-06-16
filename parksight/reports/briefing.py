@@ -56,13 +56,21 @@ def build_briefing(window="evening", top_n=10, for_date=None,
     # zone that scores high overall but is quiet in the target window won't top a
     # briefing for that window.
     lo, hi, _ = C.PEAK_WINDOWS["evening" if window == "evening" else "morning"]
-    vc = pd.read_parquet(C.PROCESSED / "violations_clean.parquet",
-                         columns=[namecol, "hour"])
-    vc["in_win"] = (vc["hour"] >= lo) & (vc["hour"] < hi)
-    share = vc.groupby(namecol)["in_win"].mean().rename("window_share")
-    full = full.merge(share, left_on=namecol, right_index=True, how="left")
-    full["window_share"] = full["window_share"].fillna(0.0)
-    full["window_score"] = (full[sort_col] * full["window_share"]).round(2)
+    if sort_col not in full.columns:          # tolerate older artifact schemas
+        sort_col, slabel = "PCIS", "PCIS"
+    # Compute each zone's in-window violation share LIVE from the row-level data.
+    # Wrapped defensively (int cast + .map, not merge) so it can't crash on any
+    # pandas version or an older artifact; if the row file is unavailable we fall
+    # back to ranking by the chosen metric alone (window_share = 1).
+    try:
+        vc = pd.read_parquet(C.PROCESSED / "violations_clean.parquet",
+                             columns=[namecol, "hour"])
+        vc["in_win"] = ((vc["hour"] >= lo) & (vc["hour"] < hi)).astype(int)
+        share = vc.groupby(namecol)["in_win"].mean()
+        full["window_share"] = full[namecol].map(share).fillna(0.0).astype(float)
+    except Exception:
+        full["window_share"] = 1.0
+    full["window_score"] = (full[sort_col].astype(float) * full["window_share"]).round(2)
     st = full.sort_values("window_score", ascending=False).head(top_n).copy()
     st["units"] = (st["PCIS"] / 100 * 3).round().clip(lower=1).astype(int)
     off = (pd.read_parquet(C.PROCESSED / "offenders.parquet")
