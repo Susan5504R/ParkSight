@@ -16,7 +16,7 @@ Fill the Flipkart Gridlock 2.0 Round-2 form with the content below.
 chokes Bengaluru's carriageways and junctions. Enforcement is reactive and patrol-based, there is no
 heatmap of violations vs. congestion impact, and authorities can't prioritise where — or when — to deploy.
 
-**The discovery.** Profiling the official dataset (298,450 geo-located violations, Nov 2023–Apr 2024)
+**The discovery.** Profiling the official dataset (298,445 geo-located violations, Nov 2023–Apr 2024)
 and converting timestamps UTC→IST reveals an **Evening Enforcement Blind-Spot**: violation records
 collapse during IST 15:00–24:00, spanning the evening commercial-congestion peak. Few tickets here means low
 enforcement *visibility*, not fewer violations — the precise gap the theme names.
@@ -43,10 +43,10 @@ artifacts, so the app is instant and deployable. Built only on the official prov
 in a single click, targeting the third of violations driven by repeat offenders and the evening blind-spot.
 
 ## Demo Link
-`https://<your-app>.streamlit.app`  *(deploy `parksight/app/Home.py` to Streamlit Community Cloud)*
+**https://parksight.streamlit.app/**  *(live — Streamlit Community Cloud; works out-of-the-box on committed artifacts)*
 
 ## Repository URL
-`https://github.com/<you>/parksight`
+**https://github.com/Susan5504R/ParkSight**
 
 ## Video URL
 `https://youtu.be/<id>`  *(2.5-min walkthrough — script below)*

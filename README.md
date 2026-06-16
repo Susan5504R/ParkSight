@@ -5,10 +5,10 @@
 
 **Flipkart Gridlock 2.0 · Round 2 · Theme 1 — Poor Visibility on Parking-Induced Congestion**
 
-*From reactive patrols to a predictive command center — built on 298,450 real Bengaluru parking violations.*
+*From reactive patrols to a predictive command center — built on 298,445 real Bengaluru parking violations.*
 
 <p>
-<img alt="Python" src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white">
+<img alt="Python" src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white">
 <img alt="Streamlit" src="https://img.shields.io/badge/Streamlit-app-FF4B4B?logo=streamlit&logoColor=white">
 <img alt="LightGBM" src="https://img.shields.io/badge/LightGBM-forecast-9ACD32">
 <img alt="H3" src="https://img.shields.io/badge/Uber%20H3-hex%20grid-000000">
@@ -19,6 +19,7 @@
 <img src="parksight/assets/screens/01_overview.png" width="900" alt="ParkSight Executive Dashboard"/>
 
 <p>
+<b><a href="https://parksight.streamlit.app/">🚀 Live Demo</a></b> ·
 <b><a href="#run-it-locally">⚡ Run in 60 seconds</a></b> ·
 <b><a href="#what-parksight-does">🧭 Features</a></b> ·
 <b><a href="#performance--validation">📈 Metrics</a></b> ·
@@ -137,9 +138,9 @@ artifacts via [`scripts/smoke_test_app.py`](scripts/smoke_test_app.py) and
 | **De-bias correction** | **up to 2.8×** | Inverse-propensity re-inflation in dark hours |
 | **Evening visibility gap** | **~2.2% of peak** | Active enforcement devices, IST 15:00–24:00 |
 | **Chronic offenders** | **15% → 34%** | 15% of vehicles cause 34% of all violations |
-| **Records analysed** | **298,450** | Real Bengaluru violations, Jan–May |
+| **Records analysed** | **298,445** | Real Bengaluru violations, Nov 2023–Apr 2024 |
 | **Artifact size** | **< 50 MB** | Ships under the submission limit; instant load |
-| **App pages smoke-tested** | **8 / 8** | Headless AppTest passes on every page in CI |
+| **App pages smoke-tested** | **10 / 10** | Headless AppTest passes on every page in CI |
 
 ## Screenshots (live app)
 
@@ -162,7 +163,7 @@ flowchart LR
     C --> F[(Compact artifacts<br/>Parquet · &lt;50 MB)]
     D --> F
     E --> F
-    F --> G[Streamlit command center<br/>8 pages · pydeck · Plotly]
+    F --> G[Streamlit command center<br/>10 pages · pydeck · Plotly]
     G --> H[AI Copilot<br/>grounded · optional Claude]
     G --> I[PDF briefing<br/>+ CSV exports]
 ```
@@ -209,11 +210,11 @@ Without any key the Copilot runs a deterministic engine — answers are still 10
 ## Testing
 
 ```bash
-# Headless smoke test — renders every one of the 8 pages and asserts no exceptions
+# Headless smoke test — renders every one of the 10 pages and asserts no exceptions
 python scripts/smoke_test_app.py
 ```
 
-- **End-to-end app test** — Streamlit `AppTest` walks all 8 pages with the committed artifacts.
+- **End-to-end app test** — Streamlit `AppTest` walks all 10 pages with the committed artifacts.
 - **Forecast validation** — rolling cross-validation selects the model; MASE & climatology
   benchmarks are printed by `train_forecast.py`.
 - **Reproducibility** — the entire pipeline is parameterised (no hardcoded numbers); upload new
@@ -228,7 +229,7 @@ parksight/
 ├─ copilot/engine.py         # deterministic intents + optional Claude (grounded)
 ├─ reports/briefing.py       # Daily Deployment Briefing PDF
 ├─ reports/figures.py        # static PNGs + architecture diagram
-├─ app/Home.py + pages/      # 8-page Streamlit command center
+├─ app/Home.py + pages/      # 10-page Streamlit command center
 ├─ data/processed/*.parquet  # committed analytics artifacts (<50 MB)
 └─ assets/*.png              # figures
 docs/                        # SKILL.md (strategy), SUBMISSION.md, slides
@@ -258,8 +259,8 @@ spatio-temporal forecasting · patrol max-coverage optimiser · multi-city onboa
 
 ## Data source & references
 
-- **Dataset** — Official Bengaluru traffic-police parking-violation records (Jan–May), provided for
-  Flipkart Gridlock 2.0 Round 2, Theme 1. 298,450 anonymised records; raw CSV not redistributed.
+- **Dataset** — Official Bengaluru traffic-police parking-violation records (Nov 2023–Apr 2024), provided for
+  Flipkart Gridlock 2.0 Round 2, Theme 1. 298,445 anonymised records (post-clean); raw CSV not redistributed.
 - **H3** — Uber's hexagonal hierarchical spatial index · [h3geo.org](https://h3geo.org)
 - **Inverse-propensity weighting** — Horvitz–Thompson estimator for exposure-corrected counts.
 - **Conformal prediction** — Mondrian (class-conditional) calibrated intervals.
