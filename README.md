@@ -267,7 +267,7 @@ spatio-temporal forecasting · patrol max-coverage optimiser · multi-city onboa
 
 ## Team
 
-Built for **Flipkart Gridlock 2.0 · Round 2** by **Team ParkSight**.
+Built for **Flipkart Gridlock 2.0 · Round 2** by **Team printf**.
 Questions or a walkthrough? Open an issue on this repo and we'll respond.
 
 ---
