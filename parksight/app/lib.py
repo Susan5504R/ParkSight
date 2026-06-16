@@ -136,8 +136,14 @@ def persist_state():
     before any widget on the page is instantiated (we call it from common_sidebar,
     which every page invokes near the top)."""
     for k in list(st.session_state.keys()):
-        # skip the file-uploader / internal keys that can't be re-assigned
-        if k.startswith("FormSubmitter") or k.startswith("$$"):
+        # Skip keys that Streamlit forbids assigning via session_state. Command
+        # widgets (button / download_button / form_submit_button) raise
+        # StreamlitValueAssignmentNotAllowedError the moment a self-write marks
+        # their key 'user-set', so re-rendering the widget blows up. They're
+        # momentary and never need to survive navigation anyway. Convention:
+        # give every keyed button a "_btn_" prefix so it is auto-excluded here.
+        if (k.startswith("FormSubmitter") or k.startswith("$$")
+                or k.startswith("_btn_")):
             continue
         try:
             st.session_state[k] = st.session_state[k]
@@ -284,4 +290,58 @@ def blind_spot_band(by_hour):
     thresh = 0.15 * float(by_hour.max())
     low = [h for h in range(12, 24) if float(by_hour[h]) < thresh]
     return (min(low), max(low) + 1) if low else (14, 21)
+
+
+# ---------------------------------------------------------------- PCIS scoring
+def pcis_recompute(df, weights):
+    """Re-score a pre-aggregated PCIS frame for an arbitrary weight vector.
+
+    `df` already holds per-zone V/S/L/P/T components (built once by the ETL and
+    cached), so this is a cheap vectorised weighted sum — NOT a re-group of the
+    raw 298k violations. `weights` is a dict V/S/L/P/T; it is normalised to a
+    convex combination (sum=1) so the score can never exceed the component scale,
+    then min-max stretched to a 0–100 display range. Returns (scored_df, norm)
+    where `norm` is the normalised weight dict actually applied."""
+    tot = sum(max(0.0, float(weights[k])) for k in "VSLPT") or 1.0
+    norm = {k: max(0.0, float(weights[k])) / tot for k in "VSLPT"}
+    raw = sum(norm[k] * df[k] for k in "VSLPT")
+    lo, hi = raw.min(), raw.max()
+    out = df.copy()
+    out["PCIS_live"] = (100 * (raw - lo) / (hi - lo + 1e-9)).round(1)
+    return out.sort_values("PCIS_live", ascending=False), norm
+
+
+@st.cache_data(show_spinner=False)
+def _anchor_rows():
+    """Resolve the expert ground-truth anchors to their junction rows once.
+
+    Matched on the stable BTP code embedded in `junction_name`, so a rename or a
+    re-ranking of the junctions can't silently break the validation set."""
+    j = load("junction_pcis.parquet")
+    rows = []
+    for code, label, tier, exp_rank in C.PCIS_GROUND_TRUTH:
+        hit = j[j["junction_name"].str.contains(code, na=False)]
+        if len(hit):
+            r = hit.iloc[0]
+            rows.append({"code": code, "label": label, "tier": tier,
+                         "expert_rank": exp_rank, "junction_name": r["junction_name"],
+                         **{k: float(r[k]) for k in "VSLPT"}})
+    return pd.DataFrame(rows)
+
+
+def ground_truth_alignment(weights):
+    """Spearman ρ between the live PCIS ranking and the expert anchor ordering.
+
+    Recomputed on every weight change so the page can show how re-weighting moves
+    the formula toward (or away from) the human-known congestion ordering. Returns
+    (rho, detail_df) — detail_df carries each anchor's expert vs. model rank."""
+    from scipy.stats import spearmanr
+    a = _anchor_rows()
+    if len(a) < 3:
+        return float("nan"), a
+    scored, _ = pcis_recompute(a, weights)
+    scored["model_rank"] = scored["PCIS_live"].rank(ascending=False, method="min")
+    scored = scored.sort_values("expert_rank")
+    rho, _ = spearmanr(scored["expert_rank"], scored["model_rank"])
+    return float(rho), scored
 

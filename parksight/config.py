@@ -51,6 +51,33 @@ OFFPEAK_WEIGHT = 0.30
 # --- PCIS component weights (UI-tunable defaults) ----------------------------
 PCIS_WEIGHTS = {"V": 0.30, "S": 0.20, "L": 0.20, "P": 0.20, "T": 0.10}
 
+# --- Ground-truth anchor (expert face-validity set) --------------------------
+# The dataset has no traffic-flow sensor column, so we validate PCIS against an
+# EXPERT-LABELLED reference: well-known Bengaluru congestion landmarks vs. quiet
+# residential junctions, ordered most→least congested by local traffic knowledge.
+# This is a face-validity check (does the score agree with what humans already
+# know is gridlocked?), NOT a claim of independent sensor ground truth. Each
+# anchor is matched on its stable BTP code so renames/reorders can't break it.
+# rank 1 = most congested. Spearman ρ vs. the live PCIS ranking is shown on the
+# page and recomputed as the weights move — neutralising "your weights are
+# arbitrary" by proving the formula reproduces a known ordering.
+PCIS_GROUND_TRUTH = [
+    # --- known severe bottlenecks ---
+    ("BTP082", "KR Market Junction",   "high", 1),
+    ("BTP051", "Safina Plaza Junction", "high", 2),
+    ("BTP038", "Mysore Bank Junction",  "high", 3),
+    ("BTP043", "Upparpet Junction",     "high", 4),
+    ("BTP044", "Sagar Theatre Junction", "high", 5),
+    ("BTP027", "Modi Bridge Junction",  "high", 6),
+    # --- quiet residential / low-traffic junctions ---
+    ("BTP216", "Yediyur Junction",            "low", 7),
+    ("BTP164", "29th Main Road, BTM Layout",  "low", 8),
+    ("BTP200", "15th Cross, 33rd Main, JP Nagar", "low", 9),
+    ("BTP110", "Bharathi Nursing Home, Basavanagudi", "low", 10),
+    ("BTP154", "Itmadu Junction",             "low", 11),
+    ("BTP144", "Commando Hospital Junction",  "low", 12),
+]
+
 # --- De-biasing engine (selection-bias / endogeneity correction) -------------
 # Tickets are a BIASED sample of true violations: a violation is only observed
 # if an enforcement device is present. Enforcement collapses in the evening, so
