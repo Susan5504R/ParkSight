@@ -28,15 +28,47 @@ TIER_COLOR = {"High": colors.HexColor("#7f1d1d"),
               "Low": colors.HexColor("#064e3b")}
 
 
-def build_briefing(window="evening", top_n=10, for_date=None):
+def build_briefing(window="evening", top_n=10, for_date=None,
+                   grain="Police station", sort_by="Blind-Spot (de-biased)"):
     for_date = for_date or (date.today())
     meta = json.loads((C.PROCESSED / "meta.json").read_text())
-    st = (pd.read_parquet(C.PROCESSED / "station_pcis.parquet")
-            .sort_values("PCIS", ascending=False).head(top_n).copy())
+
+    # Mirror the Prioritize page exactly: same grain file, same ranking metric,
+    # so the PDF reflects the controls the officer actually selected.
+    if grain == "Junction":
+        fname, namecol, glabel = "junction_pcis.parquet", "junction_name", "Junction"
+    else:
+        fname, namecol, glabel = "station_pcis.parquet", "police_station", "Police Station"
+    if sort_by.startswith("Blind"):
+        sort_col, slabel = "blindspot_risk", "Blind-Spot"
+    elif sort_by.startswith("PCIS"):
+        sort_col, slabel = "PCIS", "PCIS"
+    else:
+        sort_col, slabel = "gap_score", "Gap"
+
+    full = pd.read_parquet(C.PROCESSED / fname).copy()
+
+    # Window-focused ranking. The hour range comes from config (not hardcoded
+    # here), and the share of each zone's violations that actually fall inside the
+    # target window is computed LIVE from the row-level data — so a morning vs.
+    # evening briefing genuinely re-ranks, and it adapts to any dataset uploaded
+    # via Data Refresh. Deployment score = chosen metric x in-window share, so a
+    # zone that scores high overall but is quiet in the target window won't top a
+    # briefing for that window.
+    lo, hi, _ = C.PEAK_WINDOWS["evening" if window == "evening" else "morning"]
+    vc = pd.read_parquet(C.PROCESSED / "violations_clean.parquet",
+                         columns=[namecol, "hour"])
+    vc["in_win"] = (vc["hour"] >= lo) & (vc["hour"] < hi)
+    share = vc.groupby(namecol)["in_win"].mean().rename("window_share")
+    full = full.merge(share, left_on=namecol, right_index=True, how="left")
+    full["window_share"] = full["window_share"].fillna(0.0)
+    full["window_score"] = (full[sort_col] * full["window_share"]).round(2)
+    st = full.sort_values("window_score", ascending=False).head(top_n).copy()
     st["units"] = (st["PCIS"] / 100 * 3).round().clip(lower=1).astype(int)
     off = (pd.read_parquet(C.PROCESSED / "offenders.parquet")
              .sort_values("violations", ascending=False).head(8))
-    win = "17:00–21:00 IST (Evening Peak)" if window == "evening" else "08:00–11:00 IST (Morning Peak)"
+    win = (f"{lo:02d}:00–{hi:02d}:00 IST "
+           f"({'Evening' if window == 'evening' else 'Morning'} Peak)")
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=14 * mm, bottomMargin=12 * mm,
@@ -50,30 +82,46 @@ def build_briefing(window="evening", top_n=10, for_date=None):
     el = []
     el.append(Paragraph("ParkSight — Daily Deployment Briefing", h1))
     el.append(Paragraph(f"Bengaluru Traffic Police · {for_date:%A, %d %b %Y} · "
-                        f"Target window: <b>{win}</b>", sub))
+                        f"Target window: <b>{win}</b> · "
+                        f"Level: <b>{glabel}</b> · Ranked by: <b>{slabel}</b>", sub))
     el.append(Spacer(1, 6))
     el.append(Paragraph(
         f"Dataset: {meta['total_violations']:,} violations ({meta['date_min']}→{meta['date_max']}). "
         f"Repeat offenders drive {meta['repeat_share']}% of violations; "
         f"{meta['severe_share']}% are carriageway-blocking. "
-        f"<b>Action:</b> prioritise the stations below; enforcement records currently collapse "
-        f"during {meta['evening_trough_hours']} — close that blind spot first.", body))
+        f"<b>Action:</b> prioritise the {glabel.lower()}s below; enforcement records currently "
+        f"collapse during {meta['evening_trough_hours']} — close that blind spot first.", body))
 
-    el.append(Paragraph("Priority Stations — recommended deployment", sec))
-    rows = [["#", "Police Station", "PCIS", "Tier", "Units", "Why"]]
+    winpct_label = f"% in {'Eve' if window == 'evening' else 'Morn'}"
+    el.append(Paragraph(f"Priority {glabel}s — recommended deployment "
+                        f"(ranked by {slabel}, focused on the {win.split(' IST')[0]} window)", sec))
+    show_score = slabel != "PCIS"  # avoid a duplicate PCIS column when that's the sort
+    header = (["#", glabel] + ([slabel] if show_score else []) +
+              ["PCIS", winpct_label, "Tier", "Units", "Why"])
+    rows = [header]
     for i, r in st.reset_index(drop=True).iterrows():
-        rows.append([str(i + 1), r["police_station"], f"{r['PCIS']:.0f}",
-                     str(r["tier"]), str(r["units"]),
-                     Paragraph(r["reason"], ParagraphStyle("c", parent=body, fontSize=7.5))])
-    t = Table(rows, colWidths=[8 * mm, 42 * mm, 14 * mm, 16 * mm, 12 * mm, 78 * mm])
+        row = [str(i + 1), r[namecol]]
+        if show_score:
+            row.append(f"{r[sort_col]:.0f}")
+        row += [f"{r['PCIS']:.0f}", f"{100 * r['window_share']:.0f}%",
+                str(r["tier"]), str(r["units"]),
+                Paragraph(r["reason"], ParagraphStyle("c", parent=body, fontSize=7.5))]
+        rows.append(row)
+    if show_score:
+        colw = [7 * mm, 36 * mm, 14 * mm, 12 * mm, 14 * mm, 14 * mm, 11 * mm, 74 * mm]
+    else:
+        colw = [7 * mm, 40 * mm, 13 * mm, 14 * mm, 15 * mm, 12 * mm, 81 * mm]
+    t = Table(rows, colWidths=colw)
     style = [("BACKGROUND", (0, 0), (-1, 0), INDIGO),
              ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
              ("FONTSIZE", (0, 0), (-1, -1), 8), ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
              ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#F1F5F9"), colors.white]),
              ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
              ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]
+    tier_col = header.index("Tier")
     for i, r in st.reset_index(drop=True).iterrows():
-        style.append(("TEXTCOLOR", (3, i + 1), (3, i + 1), TIER_COLOR.get(str(r["tier"]), colors.black)))
+        style.append(("TEXTCOLOR", (tier_col, i + 1), (tier_col, i + 1),
+                      TIER_COLOR.get(str(r["tier"]), colors.black)))
     t.setStyle(TableStyle(style))
     el.append(t)
 
@@ -91,9 +139,12 @@ def build_briefing(window="evening", top_n=10, for_date=None):
         ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#FCA5A5"))]))
     el.append(ot)
     el.append(Spacer(1, 8))
-    el.append(Paragraph("Generated by ParkSight · PCIS = Parking Congestion Impact Score "
-                        "(volume·severity·location·peak-overlap·trend). Recommendations are "
-                        "decision-support, not automated enforcement.", sub))
+    el.append(Paragraph(
+        f"Generated by ParkSight · PCIS = Parking Congestion Impact Score "
+        f"(volume·severity·location·peak-overlap·trend). Ranking = {slabel} × the share of each "
+        f"{glabel.lower()}'s violations falling in the {win.split(' IST')[0]} window (computed live "
+        f"from {meta['total_violations']:,} records — nothing hardcoded). Recommendations are "
+        f"decision-support, not automated enforcement.", sub))
     doc.build(el)
     return buf.getvalue()
 

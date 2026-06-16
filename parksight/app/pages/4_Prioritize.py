@@ -22,6 +22,7 @@ lib.page_header("🎯 Enforcement Prioritization",
 if "pri_grain"   not in st.session_state: st.session_state["pri_grain"]   = "Police station"
 if "pri_window"  not in st.session_state: st.session_state["pri_window"]  = "evening"
 if "pri_sort_by" not in st.session_state: st.session_state["pri_sort_by"] = "Blind-Spot (de-biased)"
+if "pri_top_n"   not in st.session_state: st.session_state["pri_top_n"]   = 10
 
 c1, c2, c3 = st.columns([1, 1, 1.4])
 grain = c1.radio("Level", ["Police station", "Junction"], horizontal=False, key="pri_grain")
@@ -45,10 +46,16 @@ df["units"] = (df["PCIS"] / 100 * 3).round().clip(lower=1).astype(int)
 
 with c3:
     st.markdown("**📄 Daily Deployment Briefing**")
-    st.caption("One-page PDF a station officer can act on this shift.")
-    pdf = build_briefing(window=window, top_n=10, for_date=date.today())
+    st.caption("One-page PDF a station officer can act on this shift — "
+               "reflects the Level, Rank-by and Window selected on the left.")
+    top_n = st.slider("Zones in briefing", 5, 25, step=5, key="pri_top_n")
+    pdf = build_briefing(window=window, top_n=top_n, for_date=date.today(),
+                         grain=grain, sort_by=sort_by)
+    _slug = ("blindspot" if sort_by.startswith("Blind") else
+             "pcis" if sort_by.startswith("PCIS") else "gap")
+    _glug = "station" if grain == "Police station" else "junction"
     st.download_button("⬇️ Download briefing PDF", data=pdf,
-                       file_name=f"parksight_briefing_{window}.pdf",
+                       file_name=f"parksight_briefing_{_glug}_{_slug}_{window}_top{top_n}.pdf",
                        mime="application/pdf", use_container_width=True)
 
 st.divider()

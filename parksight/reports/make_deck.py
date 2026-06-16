@@ -24,6 +24,14 @@ SW, SH = Inches(13.333), Inches(7.5)
 meta = json.loads((C.PROCESSED / "meta.json").read_text())
 mx = json.loads((C.MODELS.parent / "metrics.json").read_text())
 
+# Derive headline figures from the artifacts so the deck never goes stale or
+# disagrees with the live dashboard (nothing hardcoded).
+import pandas as pd  # noqa: E402
+_off = pd.read_parquet(C.PROCESSED / "offenders.parquet")
+_veh = pd.read_parquet(C.PROCESSED / "violations_clean.parquet",
+                       columns=["vehicle_number"])["vehicle_number"].nunique()
+repeat_vehicle_share = round(100 * len(_off) / _veh, 1) if _veh else 0.0
+
 prs = Presentation()
 prs.slide_width = SW
 prs.slide_height = SH
@@ -107,14 +115,14 @@ txt(s, Inches(8.1), Inches(1.8), Inches(4.6), Inches(4),
 s = slide(); header(s, "THE DISCOVERY", "The Evening Enforcement Blind-Spot", RED)
 pic(s, C.ASSETS / "fig_blindspot.png", Inches(0.6), Inches(1.7), w=Inches(7.4))
 bullets(s, Inches(8.2), Inches(1.9), Inches(4.7), Inches(4.5), [
-    "After converting timestamps UTC→IST, records collapse during 15:00–24:00.",
+    f"After converting timestamps UTC→IST, records collapse during {meta['evening_trough_hours']}.",
     "That's exactly when commercial congestion peaks.",
     "Few tickets ≠ few violations → it's low enforcement VISIBILITY.",
     "This IS the 'poor visibility' the brief names — ParkSight closes it.",
 ], 17, gap=12)
 
 # 4 — Dataset
-s = slide(); header(s, "THE DATA", "298,450 violations — a near-perfect fit", CYAN)
+s = slide(); header(s, "THE DATA", f"{meta['total_violations']:,} violations — a near-perfect fit", CYAN)
 stats = [(f"{meta['total_violations']:,}", "violations"),
          ("100%", "geo-located"),
          (f"{meta['n_stations']}", "police stations"),
@@ -141,7 +149,7 @@ mods = [("🧭 Executive Dashboard", "KPIs, impact, the blind-spot"),
         ("🎯 Prioritize", "ranked plan + PDF briefing"),
         ("🧪 Simulator", "What-If deployment impact"),
         ("🤖 AI Copilot", "plain-English, grounded answers"),
-        ("🚨 Offenders", "15% of vehicles → 34% of violations")]
+        ("🚨 Offenders", f"{repeat_vehicle_share:.0f}% of vehicles → {meta['repeat_share']:.0f}% of violations")]
 for i, (t, d) in enumerate(mods):
     x = Inches(0.6 + (i % 4) * 3.12); y = Inches(2.0 + (i // 4) * 2.3)
     card = s.shapes.add_shape(1, x, y, Inches(2.9), Inches(2.0))

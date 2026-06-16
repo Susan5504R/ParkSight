@@ -92,6 +92,9 @@ def fig_forecast():
 
 
 def fig_architecture():
+    import json
+    _meta = json.loads((C.PROCESSED / "meta.json").read_text())
+    _rows = _meta.get("total_violations", 0)
     fig, ax = plt.subplots(figsize=(12, 7)); ax.axis("off")
     ax.set_xlim(0, 12); ax.set_ylim(0, 7)
 
@@ -107,7 +110,7 @@ def fig_architecture():
 
     ax.text(6, 6.6, "ParkSight — System Architecture", ha="center",
             color="#F8FAFC", fontsize=16, fontweight="bold")
-    box(0.4, 5.0, 2.4, 1.0, "RAW CSV\n298,450 rows · 109 MB", fc="#1E293B", ec="#475569")
+    box(0.4, 5.0, 2.4, 1.0, f"RAW CSV\n{_rows:,} rows · 109 MB", fc="#1E293B", ec="#475569")
     box(3.4, 5.0, 3.0, 1.0, "ETL & FEATURE BUILD\nclean · UTC→IST · H3 · severity\nlocation · peak · repeat", ec=CYAN)
     box(7.0, 5.0, 2.3, 1.0, "PCIS ENGINE\nV·S·L·P·T → score\n+ DBSCAN zones", ec=ORANGE)
     box(9.6, 5.0, 2.0, 1.0, "FORECAST\nLightGBM\n+ quantiles", ec=AMBER)
