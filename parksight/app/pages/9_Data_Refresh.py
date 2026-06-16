@@ -16,6 +16,7 @@ from parksight.models import train_forecast  # noqa: E402
 
 st.set_page_config(page_title="ParkSight — Data Refresh", page_icon="⚙️", layout="wide")
 lib.inject_css()
+lib.common_sidebar()
 
 lib.page_header("⚙️ Live Data Refresh",
                 "Nothing is hardcoded. Drop in new violation data and the entire platform — "

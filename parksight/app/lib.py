@@ -124,6 +124,63 @@ def page_header(title, subtitle=""):
         st.caption(subtitle)
 
 
+def persist_state():
+    """Keep widget values alive across multipage navigation.
+
+    Streamlit garbage-collects a widget's key from session_state on any run where
+    that widget isn't rendered (i.e. when you're on another page). Re-assigning each
+    key to itself marks it 'active' for the current run so it survives. This MUST run
+    before any widget on the page is instantiated (we call it from common_sidebar,
+    which every page invokes near the top)."""
+    for k in list(st.session_state.keys()):
+        # skip the file-uploader / internal keys that can't be re-assigned
+        if k.startswith("FormSubmitter") or k.startswith("$$"):
+            continue
+        try:
+            st.session_state[k] = st.session_state[k]
+        except Exception:  # noqa: BLE001 — some widget types disallow re-assignment
+            pass
+
+
+def common_sidebar():
+    """Render API key inputs in sidebar on every page; persist keys across navigation."""
+    import os
+    persist_state()
+    # Restore os.environ from session state (set on a previous page)
+    if st.session_state.get("_pk_anthropic"):
+        os.environ["ANTHROPIC_API_KEY"] = st.session_state["_pk_anthropic"]
+    if st.session_state.get("_pk_gemini"):
+        os.environ["GOOGLE_API_KEY"] = st.session_state["_pk_gemini"]
+
+    has_claude = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    has_gemini = bool(os.environ.get("GOOGLE_API_KEY"))
+
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("#### 🔑 AI Copilot Keys *(optional)*")
+        st.caption("Session-only — never stored.")
+        if not has_claude:
+            val = st.text_input("Anthropic API Key", type="password",
+                                placeholder="sk-ant-...", key="_anthro_input")
+            if val:
+                st.session_state["_pk_anthropic"] = val
+                os.environ["ANTHROPIC_API_KEY"] = val
+                has_claude = True
+        else:
+            st.success("Claude active ✓", icon="🔑")
+        if not has_claude and not has_gemini:
+            val = st.text_input("Google Gemini Key", type="password",
+                                placeholder="AIza...", key="_gemini_input")
+            if val:
+                st.session_state["_pk_gemini"] = val
+                os.environ["GOOGLE_API_KEY"] = val
+                has_gemini = True
+        elif has_gemini and not has_claude:
+            st.success("Gemini active ✓", icon="🔑")
+
+    return has_claude, has_gemini
+
+
 def no_data_warning():
     st.error("Analytics artifacts not found. Run the ETL first:\n\n"
              "```\npython parksight/etl/build_artifacts.py\n"

@@ -12,18 +12,24 @@ from parksight.reports.briefing import build_briefing  # noqa: E402
 
 st.set_page_config(page_title="ParkSight — Prioritize", page_icon="🎯", layout="wide")
 lib.inject_css()
+lib.common_sidebar()
 if not lib.artifacts_exist():
     lib.no_data_warning()
 
 lib.page_header("🎯 Enforcement Prioritization",
                 "Turn impact scores into a ranked, reasoned deployment plan.")
 
+if "pri_grain"   not in st.session_state: st.session_state["pri_grain"]   = "Police station"
+if "pri_window"  not in st.session_state: st.session_state["pri_window"]  = "evening"
+if "pri_sort_by" not in st.session_state: st.session_state["pri_sort_by"] = "Blind-Spot (de-biased)"
+
 c1, c2, c3 = st.columns([1, 1, 1.4])
-grain = c1.radio("Level", ["Police station", "Junction"], horizontal=False)
+grain = c1.radio("Level", ["Police station", "Junction"], horizontal=False, key="pri_grain")
 window = c2.radio("Target window", ["evening", "morning"], horizontal=False,
-                  format_func=lambda w: "Evening (17–21 IST)" if w == "evening" else "Morning (08–11 IST)")
+                  format_func=lambda w: "Evening (17–21 IST)" if w == "evening" else "Morning (08–11 IST)",
+                  key="pri_window")
 sort_by = c1.radio("Rank by", ["Blind-Spot (de-biased)", "PCIS (impact)", "Enforcement-Gap"],
-                   horizontal=False,
+                   horizontal=False, key="pri_sort_by",
                    help="Blind-Spot = de-biased deploy-here index. It inverse-propensity-"
                         "weights tickets by hourly enforcement exposure and compares them to "
                         "an external congestion prior, so it surfaces high-congestion places "

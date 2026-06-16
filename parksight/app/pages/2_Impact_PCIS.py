@@ -13,6 +13,7 @@ from parksight import config as C  # noqa: E402
 
 st.set_page_config(page_title="ParkSight — Impact (PCIS)", page_icon="📊", layout="wide")
 lib.inject_css()
+lib.common_sidebar()
 if not lib.artifacts_exist():
     lib.no_data_warning()
 
@@ -34,9 +35,16 @@ $$PCIS = 100 \times (w_V\hat V + w_S\hat S + w_L\hat L + w_P\hat P + w_T\hat T)$
 | **T̂** Trend | month-over-month growth | rising hotspots get prioritised early |
 """)
 
+if "pcis_grain" not in st.session_state: st.session_state["pcis_grain"] = "junction"
+if "pcis_wV"    not in st.session_state: st.session_state["pcis_wV"]    = C.PCIS_WEIGHTS["V"]
+if "pcis_wS"    not in st.session_state: st.session_state["pcis_wS"]    = C.PCIS_WEIGHTS["S"]
+if "pcis_wL"    not in st.session_state: st.session_state["pcis_wL"]    = C.PCIS_WEIGHTS["L"]
+if "pcis_wP"    not in st.session_state: st.session_state["pcis_wP"]    = C.PCIS_WEIGHTS["P"]
+if "pcis_wT"    not in st.session_state: st.session_state["pcis_wT"]    = C.PCIS_WEIGHTS["T"]
+
 st.divider()
 st.markdown("### 🎛️ Tune the model (judges: try it live)")
-grain = st.radio("Granularity", ["junction", "station", "hex (cell)"], horizontal=True)
+grain = st.radio("Granularity", ["junction", "station", "hex (cell)"], horizontal=True, key="pcis_grain")
 fname = {"junction": "junction_pcis.parquet", "station": "station_pcis.parquet",
          "hex (cell)": "cell_pcis.parquet"}[grain]
 namecol = {"junction": "junction_name", "station": "police_station",
@@ -44,12 +52,11 @@ namecol = {"junction": "junction_name", "station": "police_station",
 df = lib.load(fname).copy()
 
 cols = st.columns(5)
-defaults = C.PCIS_WEIGHTS
-wV = cols[0].slider("Volume wᵥ", 0.0, 1.0, defaults["V"], 0.05)
-wS = cols[1].slider("Severity wₛ", 0.0, 1.0, defaults["S"], 0.05)
-wL = cols[2].slider("Location wₗ", 0.0, 1.0, defaults["L"], 0.05)
-wP = cols[3].slider("Peak wₚ", 0.0, 1.0, defaults["P"], 0.05)
-wT = cols[4].slider("Trend wₜ", 0.0, 1.0, defaults["T"], 0.05)
+wV = cols[0].slider("Volume wᵥ",   0.0, 1.0, step=0.05, key="pcis_wV")
+wS = cols[1].slider("Severity wₛ", 0.0, 1.0, step=0.05, key="pcis_wS")
+wL = cols[2].slider("Location wₗ", 0.0, 1.0, step=0.05, key="pcis_wL")
+wP = cols[3].slider("Peak wₚ",     0.0, 1.0, step=0.05, key="pcis_wP")
+wT = cols[4].slider("Trend wₜ",    0.0, 1.0, step=0.05, key="pcis_wT")
 tot = wV + wS + wL + wP + wT or 1.0
 raw = (wV * df["V"] + wS * df["S"] + wL * df["L"] + wP * df["P"] + wT * df["T"]) / tot
 lo, hi = raw.min(), raw.max()

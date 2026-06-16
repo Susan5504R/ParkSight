@@ -12,6 +12,7 @@ import lib  # noqa: E402
 st.set_page_config(page_title="ParkSight — Parking Congestion Command Center",
                    page_icon="🅿️", layout="wide", initial_sidebar_state="expanded")
 lib.inject_css()
+lib.persist_state()  # keep other pages' widget values alive when passing through Home
 
 with st.sidebar:
     _logo = lib.C.ASSETS / "logo.png"

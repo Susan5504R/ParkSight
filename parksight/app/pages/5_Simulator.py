@@ -10,6 +10,7 @@ import lib  # noqa: E402
 
 st.set_page_config(page_title="ParkSight — Simulator", page_icon="🧪", layout="wide")
 lib.inject_css()
+lib.common_sidebar()
 if not lib.artifacts_exist():
     lib.no_data_warning()
 
@@ -17,18 +18,24 @@ lib.page_header("🧪 Smart Enforcement Simulator",
                 "Pick where to deploy, dial up enforcement, and see projected congestion impact fall.")
 
 st_df = lib.load("station_pcis.parquet").sort_values("PCIS", ascending=False).copy()
-st_df["impact"] = st_df["PCIS"] * st_df["violations"]   # PCIS-weighted impact proxy
+st_df["impact"] = st_df["PCIS"] * st_df["violations"]
 total_impact = st_df["impact"].sum()
 total_viol = st_df["violations"].sum()
 
+_default_sel = st_df["police_station"].head(5).tolist()
+if "sim_chosen"     not in st.session_state: st.session_state["sim_chosen"]     = _default_sel
+if "sim_delta"      not in st.session_state: st.session_state["sim_delta"]      = 25
+if "sim_elasticity" not in st.session_state: st.session_state["sim_elasticity"] = 0.4
+if "sim_units"      not in st.session_state: st.session_state["sim_units"]      = 8
+if "sim_objective"  not in st.session_state: st.session_state["sim_objective"]  = "Maximize impact coverage"
+
 c1, c2, c3 = st.columns([1.5, 1, 1])
-default_sel = st_df["police_station"].head(5).tolist()
 chosen = c1.multiselect("Deploy patrol focus to these stations",
-                        st_df["police_station"].tolist(), default=default_sel)
-delta = c2.slider("Enforcement increase (%)", 0, 100, 25, 5)
-elasticity = c3.slider("Deterrence elasticity", 0.0, 1.0, 0.4, 0.05,
+                        st_df["police_station"].tolist(), key="sim_chosen")
+delta = c2.slider("Enforcement increase (%)", 0, 100, step=5, key="sim_delta")
+elasticity = c3.slider("Deterrence elasticity", 0.0, 1.0, step=0.05,
                        help="Assumed fraction of the enforcement increase that converts "
-                            "to fewer violations. Documented, tunable assumption.")
+                            "to fewer violations. Documented, tunable assumption.", key="sim_elasticity")
 
 sel = st_df[st_df["police_station"].isin(chosen)]
 covered = sel["impact"].sum()
@@ -79,9 +86,9 @@ st.markdown("### 🤖 AI Patrol Optimizer")
 st.caption("Given a limited number of patrol units, where do they cover the most "
            "congestion impact? Greedy max-coverage over stations.")
 o1, o2 = st.columns([1, 1.4])
-units_avail = o1.number_input("Patrol units available", 1, 30, 8)
+units_avail = o1.number_input("Patrol units available", 1, 30, key="sim_units")
 objective = o2.radio("Objective", ["Maximize impact coverage", "Target enforcement-gap zones"],
-                     horizontal=True)
+                     horizontal=True, key="sim_objective")
 rank_col = "impact" if objective.startswith("Maximize") else "gap_score"
 ranked = st_df.sort_values(rank_col, ascending=False).reset_index(drop=True)
 chosen_opt = ranked.head(int(units_avail))

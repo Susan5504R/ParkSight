@@ -1,5 +1,4 @@
 """AI Copilot — natural-language interface over the analytics (grounded answers)."""
-import os
 import sys
 from pathlib import Path
 
@@ -17,9 +16,8 @@ if not lib.artifacts_exist():
 lib.page_header("🤖 ParkSight Copilot",
                 "Ask in plain English — answers are computed from the data, never hallucinated.")
 
-has_claude = bool(os.getenv("ANTHROPIC_API_KEY"))
-has_gemini = bool(os.getenv("GOOGLE_API_KEY"))
-has_key    = has_claude or has_gemini
+has_claude, has_gemini = lib.common_sidebar()
+has_key = has_claude or has_gemini
 
 if has_claude:
     st.caption("🟢 Claude NL understanding is ON (claude-sonnet-4-6) — questions are parsed by "
@@ -31,27 +29,6 @@ else:
     st.caption("🟡 Running the deterministic engine. Set **ANTHROPIC_API_KEY** or "
                "**GOOGLE_API_KEY** to enable AI free-form NL understanding. "
                "Either way, every number is grounded in the dataset.")
-
-with st.sidebar:
-    st.markdown("### 🔑 API Keys *(optional)*")
-    st.caption("Set one to unlock AI-powered free-form questions. Both keys are session-only — never stored.")
-    if not has_claude:
-        anthropic_input = st.text_input("Anthropic API Key", type="password",
-                                        placeholder="sk-ant-...")
-        if anthropic_input:
-            os.environ["ANTHROPIC_API_KEY"] = anthropic_input
-            has_claude = True; has_key = True
-    else:
-        st.success("Anthropic key active ✓", icon="🔑")
-
-    if not has_claude and not has_gemini:
-        gemini_input = st.text_input("Google Gemini API Key", type="password",
-                                     placeholder="AIza...")
-        if gemini_input:
-            os.environ["GOOGLE_API_KEY"] = gemini_input
-            has_gemini = True; has_key = True
-    elif has_gemini and not has_claude:
-        st.success("Gemini key active ✓", icon="🔑")
 
 with st.expander("🔒 How this stays safe — the LLM can't hallucinate numbers or run code"):
     st.markdown(

@@ -10,6 +10,7 @@ import lib  # noqa: E402
 
 st.set_page_config(page_title="ParkSight — Offenders", page_icon="🚨", layout="wide")
 lib.inject_css()
+lib.common_sidebar()
 if not lib.artifacts_exist():
     lib.no_data_warning()
 
@@ -26,10 +27,14 @@ k[2].metric("Worst single vehicle", f"{int(off['violations'].max())}", "violatio
 k[3].metric("Vehicles with 11+", f"{int((off['violations'] >= 11).sum()):,}")
 
 st.divider()
+if "off_min_v" not in st.session_state: st.session_state["off_min_v"] = 5
+if "off_area"  not in st.session_state: st.session_state["off_area"]  = ""
+if "off_n"     not in st.session_state: st.session_state["off_n"]     = 40
+
 c1, c2, c3 = st.columns([1, 1, 1])
-min_v = c1.slider("Min violations", 2, int(off["violations"].max()), 5)
-area = c2.text_input("Filter by station/junction contains", "")
-n = c3.slider("Show top N", 10, 200, 40, 10)
+min_v = c1.slider("Min violations", 2, int(off["violations"].max()), step=1, key="off_min_v")
+area  = c2.text_input("Filter by station/junction contains", key="off_area")
+n     = c3.slider("Show top N", 10, 200, step=10, key="off_n")
 
 f = off[off["violations"] >= min_v]
 if area.strip():

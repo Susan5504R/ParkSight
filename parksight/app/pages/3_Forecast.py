@@ -12,6 +12,7 @@ import lib  # noqa: E402
 
 st.set_page_config(page_title="ParkSight — Forecast", page_icon="🔮", layout="wide")
 lib.inject_css()
+lib.common_sidebar()
 if not lib.artifacts_exist():
     lib.no_data_warning()
 
@@ -73,8 +74,9 @@ left, right = st.columns([1.3, 1])
 
 with left:
     stations = sorted(fc["police_station"].unique())
-    default_ix = stations.index("Upparpet") if "Upparpet" in stations else 0
-    s = st.selectbox("Station", stations, index=default_ix)
+    _fc_default = "Upparpet" if "Upparpet" in stations else stations[0]
+    if "fc_station" not in st.session_state: st.session_state["fc_station"] = _fc_default
+    s = st.selectbox("Station", stations, key="fc_station")
     d = fc[fc["police_station"] == s].sort_values("date")
     hist = d[~d["is_future"]]
     fut = d[d["is_future"]]
@@ -94,7 +96,8 @@ with left:
                     title=f"{s}: 30-day actual + 7-day forecast"), use_container_width=True)
 
 with right:
-    view = st.radio("Horizon", ["Tomorrow (day+1)", "Next week (7-day total)"], horizontal=True)
+    if "fc_horizon" not in st.session_state: st.session_state["fc_horizon"] = "Tomorrow (day+1)"
+    view = st.radio("Horizon", ["Tomorrow (day+1)", "Next week (7-day total)"], horizontal=True, key="fc_horizon")
     if view.startswith("Tomorrow"):
         st.markdown("#### 📅 Tomorrow's predicted top stations")
         nxt = (fc[(fc["is_future"]) & (fc["horizon"] == 1)]

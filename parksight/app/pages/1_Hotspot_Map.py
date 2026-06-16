@@ -12,6 +12,7 @@ import lib  # noqa: E402
 
 st.set_page_config(page_title="ParkSight — Hotspot Map", page_icon="🗺️", layout="wide")
 lib.inject_css()
+lib.common_sidebar()
 if not lib.artifacts_exist():
     lib.no_data_warning()
 
@@ -21,13 +22,19 @@ lib.page_header("🗺️ AI Hotspot Map",
 cell = lib.load("cell_pcis.parquet")
 zones = lib.load("zones.parquet")
 
+# Pre-initialize session state so values survive page navigation
+if "map_layers"     not in st.session_state: st.session_state["map_layers"]     = ["PCIS hotspots"]
+if "map_min_pcis"   not in st.session_state: st.session_state["map_min_pcis"]   = 0
+if "map_hour_range" not in st.session_state: st.session_state["map_hour_range"] = (0, 23)
+if "map_extruded"   not in st.session_state: st.session_state["map_extruded"]   = True
+
 ctrl1, ctrl2, ctrl3, ctrl4 = st.columns([1.4, 1, 1, 1])
-layers_on = ctrl1.multiselect("Map layers",
-                              ["PCIS hotspots", "Raw violations (by time)", "DBSCAN zones"],
-                              default=["PCIS hotspots"])
-min_pcis = ctrl2.slider("Min PCIS", 0, 100, 0, 5)
-hour_range = ctrl3.slider("IST hour window", 0, 23, (0, 23))
-extruded = ctrl4.toggle("3-D columns", value=True)
+layers_on  = ctrl1.multiselect("Map layers",
+                               ["PCIS hotspots", "Raw violations (by time)", "DBSCAN zones"],
+                               key="map_layers")
+min_pcis   = ctrl2.slider("Min PCIS", 0, 100, step=5, key="map_min_pcis")
+hour_range = ctrl3.slider("IST hour window", 0, 23, key="map_hour_range")
+extruded   = ctrl4.toggle("3-D columns", key="map_extruded")
 
 layers = []
 tooltip = {"text": "PCIS {PCIS}"}
@@ -65,7 +72,7 @@ st.divider()
 st.markdown("### 🔎 Zone drill-down")
 jun = lib.load("junction_pcis.parquet").sort_values("PCIS", ascending=False)
 pick = st.selectbox("Inspect a junction hotspot",
-                    jun["junction_name"].tolist())
+                    jun["junction_name"].tolist(), key="map_junction")
 row = jun[jun["junction_name"] == pick].iloc[0]
 
 d1, d2 = st.columns([1, 1.2])

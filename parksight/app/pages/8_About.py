@@ -9,6 +9,7 @@ import lib  # noqa: E402
 
 st.set_page_config(page_title="ParkSight — About", page_icon="ℹ️", layout="wide")
 lib.inject_css()
+lib.common_sidebar()
 if not lib.artifacts_exist():
     lib.no_data_warning()
 
