@@ -7,7 +7,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import lib  # noqa: E402
 
-st.set_page_config(page_title="ParkSight — About", page_icon="ℹ️", layout="wide")
+st.set_page_config(page_title="ParkSight — About", page_icon=lib.FAVICON, layout="wide")
 lib.inject_css()
 lib.common_sidebar()
 if not lib.artifacts_exist():

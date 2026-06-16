@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lib  # noqa: E402
 
 st.set_page_config(page_title="ParkSight — Parking Congestion Command Center",
-                   page_icon="🅿️", layout="wide", initial_sidebar_state="expanded")
+                   page_icon=lib.FAVICON, layout="wide", initial_sidebar_state="expanded")
 lib.inject_css()
 lib.persist_state()  # keep other pages' widget values alive when passing through Home
 

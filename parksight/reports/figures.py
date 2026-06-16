@@ -143,8 +143,23 @@ def make_logo():
     plt.close(fig)
 
 
+def make_favicon():
+    """Square icon-mark (purple tile + P + cyan dot) for the browser-tab favicon."""
+    fig, ax = plt.subplots(figsize=(2, 2)); ax.axis("off")
+    fig.patch.set_alpha(0)
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+    ax.add_patch(FancyBboxPatch((0.1, 0.1), 0.8, 0.8,
+                 boxstyle="round,pad=0.02,rounding_size=0.18", fc=INDIGO, ec="none"))
+    ax.text(0.48, 0.48, "P", ha="center", va="center", color="white",
+            fontsize=72, fontweight="bold")
+    ax.add_patch(plt.Circle((0.78, 0.78), 0.1, color=CYAN))
+    fig.savefig(A / "favicon.png", dpi=128, transparent=True, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main():
     make_logo()
+    make_favicon()
     fig_blindspot(); fig_top_zones(); fig_violation_mix(); fig_monthly()
     fig_forecast(); fig_architecture()
     print("figures written to", A)

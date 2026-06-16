@@ -12,6 +12,9 @@ from parksight import config as C  # noqa: E402
 
 # ---------------------------------------------------------------- theme
 ACCENT = "#6366F1"
+# Browser-tab favicon: the ParkSight icon mark (falls back to emoji if missing).
+_FAVICON_PATH = C.ASSETS / "favicon.png"
+FAVICON = str(_FAVICON_PATH) if _FAVICON_PATH.exists() else "🅿️"
 RISK_RAMP = [(0, (34, 211, 238)), (40, (250, 204, 21)),
              (66, (249, 115, 22)), (100, (239, 68, 68))]
 

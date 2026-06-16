@@ -14,7 +14,7 @@ from parksight import config as C  # noqa: E402
 from parksight.etl import build_artifacts  # noqa: E402
 from parksight.models import train_forecast  # noqa: E402
 
-st.set_page_config(page_title="ParkSight — Data Refresh", page_icon="⚙️", layout="wide")
+st.set_page_config(page_title="ParkSight — Data Refresh", page_icon=lib.FAVICON, layout="wide")
 lib.inject_css()
 lib.common_sidebar()
 
