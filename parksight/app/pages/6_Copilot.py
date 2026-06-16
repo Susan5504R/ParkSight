@@ -35,19 +35,23 @@ else:
 with st.sidebar:
     st.markdown("### 🔑 API Keys *(optional)*")
     st.caption("Set one to unlock AI-powered free-form questions. Both keys are session-only — never stored.")
-    anthropic_input = st.text_input("Anthropic API Key", type="password",
-                                    placeholder="sk-ant-...",
-                                    value=os.getenv("ANTHROPIC_API_KEY", ""))
-    gemini_input    = st.text_input("Google Gemini API Key", type="password",
-                                    placeholder="AIza...",
-                                    value=os.getenv("GOOGLE_API_KEY", ""))
-    if anthropic_input:
-        os.environ["ANTHROPIC_API_KEY"] = anthropic_input
-        has_claude = True; has_key = True
-    if gemini_input:
-        os.environ["GOOGLE_API_KEY"] = gemini_input
-        if not has_claude:
+    if not has_claude:
+        anthropic_input = st.text_input("Anthropic API Key", type="password",
+                                        placeholder="sk-ant-...")
+        if anthropic_input:
+            os.environ["ANTHROPIC_API_KEY"] = anthropic_input
+            has_claude = True; has_key = True
+    else:
+        st.success("Anthropic key active ✓", icon="🔑")
+
+    if not has_claude and not has_gemini:
+        gemini_input = st.text_input("Google Gemini API Key", type="password",
+                                     placeholder="AIza...")
+        if gemini_input:
+            os.environ["GOOGLE_API_KEY"] = gemini_input
             has_gemini = True; has_key = True
+    elif has_gemini and not has_claude:
+        st.success("Gemini key active ✓", icon="🔑")
 
 with st.expander("🔒 How this stays safe — the LLM can't hallucinate numbers or run code"):
     st.markdown(
