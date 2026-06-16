@@ -1,0 +1,105 @@
+"""
+Daily Deployment Briefing — one-page PDF a station officer could act on.
+Generates bytes (for Streamlit download) or writes a sample to disk.
+"""
+import io
+import json
+import sys
+from datetime import date
+from pathlib import Path
+
+import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from parksight import config as C  # noqa: E402
+
+from reportlab.lib import colors  # noqa: E402
+from reportlab.lib.pagesizes import A4  # noqa: E402
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle  # noqa: E402
+from reportlab.lib.units import mm  # noqa: E402
+from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,  # noqa: E402
+                                TableStyle)
+
+NAVY = colors.HexColor("#0B0F1A")
+INDIGO = colors.HexColor("#6366F1")
+SLATE = colors.HexColor("#94A3B8")
+TIER_COLOR = {"High": colors.HexColor("#7f1d1d"),
+              "Medium": colors.HexColor("#78350f"),
+              "Low": colors.HexColor("#064e3b")}
+
+
+def build_briefing(window="evening", top_n=10, for_date=None):
+    for_date = for_date or (date.today())
+    meta = json.loads((C.PROCESSED / "meta.json").read_text())
+    st = (pd.read_parquet(C.PROCESSED / "station_pcis.parquet")
+            .sort_values("PCIS", ascending=False).head(top_n).copy())
+    st["units"] = (st["PCIS"] / 100 * 3).round().clip(lower=1).astype(int)
+    off = (pd.read_parquet(C.PROCESSED / "offenders.parquet")
+             .sort_values("violations", ascending=False).head(8))
+    win = "17:00–21:00 IST (Evening Peak)" if window == "evening" else "08:00–11:00 IST (Morning Peak)"
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=14 * mm, bottomMargin=12 * mm,
+                            leftMargin=14 * mm, rightMargin=14 * mm)
+    ss = getSampleStyleSheet()
+    h1 = ParagraphStyle("h1", parent=ss["Title"], textColor=INDIGO, fontSize=20, spaceAfter=2)
+    sub = ParagraphStyle("sub", parent=ss["Normal"], textColor=SLATE, fontSize=9)
+    body = ParagraphStyle("body", parent=ss["Normal"], fontSize=9, leading=13)
+    sec = ParagraphStyle("sec", parent=ss["Heading2"], fontSize=12, textColor=INDIGO,
+                         spaceBefore=10, spaceAfter=4)
+    el = []
+    el.append(Paragraph("ParkSight — Daily Deployment Briefing", h1))
+    el.append(Paragraph(f"Bengaluru Traffic Police · {for_date:%A, %d %b %Y} · "
+                        f"Target window: <b>{win}</b>", sub))
+    el.append(Spacer(1, 6))
+    el.append(Paragraph(
+        f"Dataset: {meta['total_violations']:,} violations ({meta['date_min']}→{meta['date_max']}). "
+        f"Repeat offenders drive {meta['repeat_share']}% of violations; "
+        f"{meta['severe_share']}% are carriageway-blocking. "
+        f"<b>Action:</b> prioritise the stations below; enforcement records currently collapse "
+        f"during {meta['evening_trough_hours']} — close that blind spot first.", body))
+
+    el.append(Paragraph("Priority Stations — recommended deployment", sec))
+    rows = [["#", "Police Station", "PCIS", "Tier", "Units", "Why"]]
+    for i, r in st.reset_index(drop=True).iterrows():
+        rows.append([str(i + 1), r["police_station"], f"{r['PCIS']:.0f}",
+                     str(r["tier"]), str(r["units"]),
+                     Paragraph(r["reason"], ParagraphStyle("c", parent=body, fontSize=7.5))])
+    t = Table(rows, colWidths=[8 * mm, 42 * mm, 14 * mm, 16 * mm, 12 * mm, 78 * mm])
+    style = [("BACKGROUND", (0, 0), (-1, 0), INDIGO),
+             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+             ("FONTSIZE", (0, 0), (-1, -1), 8), ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#F1F5F9"), colors.white]),
+             ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
+             ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]
+    for i, r in st.reset_index(drop=True).iterrows():
+        style.append(("TEXTCOLOR", (3, i + 1), (3, i + 1), TIER_COLOR.get(str(r["tier"]), colors.black)))
+    t.setStyle(TableStyle(style))
+    el.append(t)
+
+    el.append(Paragraph("Chronic-Offender Watchlist", sec))
+    orows = [["Vehicle", "Type", "Violations", "Top location"]]
+    for _, r in off.iterrows():
+        orows.append([r["vehicle_number"], r["vehicle_type"], str(int(r["violations"])),
+                      str(r["top_station"])])
+    ot = Table(orows, colWidths=[36 * mm, 30 * mm, 24 * mm, 80 * mm])
+    ot.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#7f1d1d")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white), ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#FEF2F2"), colors.white]),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#FCA5A5"))]))
+    el.append(ot)
+    el.append(Spacer(1, 8))
+    el.append(Paragraph("Generated by ParkSight · PCIS = Parking Congestion Impact Score "
+                        "(volume·severity·location·peak-overlap·trend). Recommendations are "
+                        "decision-support, not automated enforcement.", sub))
+    doc.build(el)
+    return buf.getvalue()
+
+
+if __name__ == "__main__":
+    data = build_briefing()
+    out = C.REPORTS_OUT / "sample_briefing.pdf"
+    out.write_bytes(data)
+    print(f"wrote {out} ({len(data)/1024:.1f} KB)")

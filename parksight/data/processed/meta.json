@@ -1,0 +1,21 @@
+{
+  "total_violations": 298445,
+  "date_min": "2023-11-10",
+  "date_max": "2024-04-08",
+  "n_stations": 54,
+  "n_junctions": 168,
+  "n_cells": 2534,
+  "n_hotspots": 234,
+  "repeat_share": 34.2,
+  "severe_share": 10.3,
+  "n_devices": 3070,
+  "top_station": "Upparpet",
+  "top_zone": "BTP179 - 9th Block, 28th Main, Jayanagar",
+  "evening_trough_hours": "15:00-24:00 IST",
+  "debias_evening_exposure_pct": 2.2,
+  "debias_peak_exposure_hour": 11,
+  "debias_max_ipw_uplift": 2.8,
+  "debias_top_blindspot_station": "Upparpet",
+  "debias_top_blindspot_risk": 100.0,
+  "debias_exposure_basis": "distinct active devices"
+}
