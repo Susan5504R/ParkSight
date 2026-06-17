@@ -400,6 +400,65 @@ def pcis_recompute(df, weights):
     return out.sort_values("PCIS_live", ascending=False), norm
 
 
+# -------------------------------------------- app-wide custom PCIS policy
+# Weights set on the Impact·PCIS page can be "applied across the app". When that
+# happens the chosen vector lives in session_state["pcis_weights_active"] and every
+# dashboard page re-scores its grain file through `scored()` below, so a custom
+# policy flows through Home, Hotspot Map, Prioritize (PCIS/Gap lenses), Simulator
+# and the briefing PDF. Until applied, the ETL-default scoring is used unchanged.
+_COMP_LABELS = [("V", "Volume"), ("S", "Severity"), ("L", "Location"),
+                ("P", "Peak"), ("T", "Trend")]
+
+
+def active_weights():
+    """The PCIS weight vector currently driving the dashboard (custom or default)."""
+    w = st.session_state.get("pcis_weights_active")
+    return dict(w) if w else dict(C.PCIS_WEIGHTS)
+
+
+def custom_weights_active():
+    """True once the user has applied custom weights across the app."""
+    return st.session_state.get("pcis_weights_active") is not None
+
+
+def _mm(s):
+    s = s.astype(float)
+    lo, hi = s.min(), s.max()
+    return (s - lo) / (hi - lo) if hi - lo > 1e-12 else s * 0.0
+
+
+def scored(name):
+    """Load a *_pcis grain file, re-scoring PCIS / tier / units / gap_score / rank
+    from the weights the user applied on the Impact·PCIS page. Until they click
+    'Apply across app' (or for artifacts without V/S/L/P/T components), this returns
+    the ETL-default scoring unchanged — so behaviour is identical to `load()`."""
+    df = load(name).copy()
+    if not custom_weights_active() or not set("VSLPT").issubset(df.columns):
+        return df
+    df, _ = pcis_recompute(df, active_weights())   # adds PCIS_live (0-100, sorted)
+    df["PCIS"] = df["PCIS_live"]
+    df["tier"] = pd.cut(df["PCIS"], bins=[-1, 33, 66, 101],
+                        labels=["Low", "Medium", "High"])
+    df["units"] = (df["PCIS"] / 100 * 3).round().clip(lower=1).astype(int)
+    if "evening_share" in df.columns:
+        df["gap_score"] = (100 * _mm(_mm(df["PCIS"]) - _mm(df["evening_share"]))).round(1)
+    df = df.reset_index(drop=True)
+    df["rank"] = range(1, len(df) + 1)
+    return df
+
+
+def policy_banner():
+    """Show an at-a-glance notice (with the weight mix) when a custom policy is live."""
+    if not custom_weights_active():
+        return
+    w = active_weights()
+    tot = sum(w.values()) or 1.0
+    parts = " · ".join(f"{lbl} {round(100 * w[k] / tot)}%" for k, lbl in _COMP_LABELS)
+    st.info(f"⚙️ **Custom enforcement policy active** — {parts}. All scores below reflect "
+            "your weighting (set on **Impact · PCIS**). Reset it there to restore the "
+            "recommended weights.")
+
+
 @st.cache_data(show_spinner=False)
 def _anchor_rows():
     """Resolve the expert ground-truth anchors to their junction rows once.

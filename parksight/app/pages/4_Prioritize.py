@@ -19,6 +19,8 @@ if not lib.artifacts_exist():
 lib.page_header("🎯 Enforcement Prioritization",
                 "Turn impact scores into a ranked, reasoned deployment plan.")
 
+lib.policy_banner()
+
 if "pri_grain"   not in st.session_state: st.session_state["pri_grain"]   = "Police station"
 if "pri_window"  not in st.session_state: st.session_state["pri_window"]  = "evening"
 if "pri_sort_by" not in st.session_state: st.session_state["pri_sort_by"] = "Blind-Spot (de-biased)"
@@ -40,23 +42,44 @@ fname = "station_pcis.parquet" if grain == "Police station" else "junction_pcis.
 namecol = "police_station" if grain == "Police station" else "junction_name"
 sort_col = ("blindspot_risk" if sort_by.startswith("Blind") else
             "PCIS" if sort_by.startswith("PCIS") else "gap_score")
-df = lib.load(fname).sort_values(sort_col, ascending=False).copy()
+df = lib.scored(fname).sort_values(sort_col, ascending=False).copy()
 df["rank"] = range(1, len(df) + 1)
 df["units"] = (df["PCIS"] / 100 * 3).round().clip(lower=1).astype(int)
 
-with c3:
+
+@st.cache_data(show_spinner=False)
+def _cached_briefing(window, top_n, grain, sort_by, day, wkey):
+    """Cache the PDF per (controls, weights, day) so dragging the slider re-uses
+    prior builds instead of re-reading 298k rows + re-rendering ReportLab on every
+    rerun. `wkey` is a hashable tuple of the applied weights (None = ETL defaults)."""
+    weights = dict(wkey) if wkey else None
+    return build_briefing(window=window, top_n=top_n, for_date=day,
+                          grain=grain, sort_by=sort_by, weights=weights)
+
+
+@st.fragment
+def briefing_panel():
+    """Self-contained so the slider re-runs ONLY this panel, not the whole
+    298k-row page — otherwise the per-rerun PDF build freezes the slider."""
     st.markdown("**📄 Daily Deployment Briefing**")
     st.caption("One-page PDF a station officer can act on this shift — "
                "reflects the Level, Rank-by and Window selected on the left.")
     top_n = st.slider("Zones in briefing", 5, 25, step=5, key="pri_top_n")
-    pdf = build_briefing(window=window, top_n=top_n, for_date=date.today(),
-                         grain=grain, sort_by=sort_by)
-    _slug = ("blindspot" if sort_by.startswith("Blind") else
-             "pcis" if sort_by.startswith("PCIS") else "gap")
-    _glug = "station" if grain == "Police station" else "junction"
+    g = st.session_state["pri_grain"]
+    w = st.session_state["pri_window"]
+    s = st.session_state["pri_sort_by"]
+    wkey = tuple(sorted(lib.active_weights().items())) if lib.custom_weights_active() else None
+    pdf = _cached_briefing(w, top_n, g, s, date.today(), wkey)
+    _slug = ("blindspot" if s.startswith("Blind") else
+             "pcis" if s.startswith("PCIS") else "gap")
+    _glug = "station" if g == "Police station" else "junction"
     st.download_button("⬇️ Download briefing PDF", data=pdf,
-                       file_name=f"parksight_briefing_{_glug}_{_slug}_{window}_top{top_n}.pdf",
+                       file_name=f"parksight_briefing_{_glug}_{_slug}_{w}_top{top_n}.pdf",
                        mime="application/pdf", use_container_width=True)
+
+
+with c3:
+    briefing_panel()
 
 st.divider()
 m = lib.meta()

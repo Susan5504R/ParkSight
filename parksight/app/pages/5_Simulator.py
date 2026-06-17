@@ -17,7 +17,9 @@ if not lib.artifacts_exist():
 lib.page_header("🧪 Smart Enforcement Simulator",
                 "Pick where to deploy, dial up enforcement, and see projected congestion impact fall.")
 
-st_df = lib.load("station_pcis.parquet").sort_values("PCIS", ascending=False).copy()
+lib.policy_banner()
+
+st_df = lib.scored("station_pcis.parquet").sort_values("PCIS", ascending=False).copy()
 st_df["impact"] = st_df["PCIS"] * st_df["violations"]
 total_impact = st_df["impact"].sum()
 total_viol = st_df["violations"].sum()

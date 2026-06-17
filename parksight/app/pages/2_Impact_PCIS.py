@@ -49,6 +49,19 @@ _COMP_COLOR = {"V": "#6366F1", "S": "#EF4444", "L": "#22D3EE",
                "P": "#F97316", "T": "#FACC15"}
 
 
+def _apply_global():
+    """Promote the current slider weights to the app-wide policy."""
+    st.session_state["pcis_weights_active"] = {k: float(st.session_state[key])
+                                               for k, _, key in _COMP}
+
+
+def _reset_global():
+    """Drop the custom policy and restore recommended weights everywhere."""
+    st.session_state["pcis_weights_active"] = None
+    for k, _, key in _COMP:
+        st.session_state[key] = C.PCIS_WEIGHTS[k]
+
+
 def _policy_bar(norm):
     """Live stacked bar of the actual normalised policy vector (sums to 100%)."""
     import plotly.graph_objects as go
@@ -112,6 +125,19 @@ def pcis_studio():
         color = "#22C55E" if pct >= 80 else "#FACC15" if pct >= 60 else "#EF4444"
         lib.kpi("Ground-truth alignment (Spearman ρ)", f"{pct}%",
                 delta="vs. expert-labelled bottlenecks", color=color)
+
+    # --- Apply this weighting across the whole dashboard ---
+    ga, gb, gc = st.columns([1.5, 1, 1.5])
+    ga.button("✅ Apply these weights across the app", on_click=_apply_global,
+              type="primary", use_container_width=True)
+    gb.button("↩️ Reset to recommended", on_click=_reset_global, use_container_width=True)
+    with gc:
+        if lib.custom_weights_active():
+            st.success("Custom policy is **active app-wide** — Home, Hotspot Map, "
+                       "Prioritize, Simulator and the briefing PDF all use it.")
+        else:
+            st.caption("The app currently uses the **recommended** weights. "
+                       "Apply yours to re-score every page.")
 
     st.divider()
     a, b = st.columns([1.3, 1])

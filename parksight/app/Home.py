@@ -43,6 +43,11 @@ st.markdown(
     f'<i>enforcement visibility</i>, not fewer violations — this is the gap ParkSight closes.</div>',
     unsafe_allow_html=True)
 
+st.page_link("pages/2_Impact_PCIS.py",
+             label="⚙️  Set your own enforcement priorities — tune the PCIS weighting",
+             icon="🎛️")
+lib.policy_banner()
+
 # ---- KPI row ----
 c1, c2, c3, c4, c5 = st.columns(5)
 with c1:
@@ -50,7 +55,7 @@ with c1:
 with c2:
     lib.kpi("Active Hotspots", f"{m['n_hotspots']:,}", "High-impact H3 cells", "#F97316")
 with c3:
-    st_high = (lib.load("station_pcis.parquet")["tier"] == "High").sum()
+    st_high = (lib.scored("station_pcis.parquet")["tier"] == "High").sum()
     lib.kpi("High-Risk Zones", f"{int(st_high)}", "police-station level", "#EF4444")
 with c4:
     lib.kpi("Repeat-Offender Share", f"{m['repeat_share']}%", "of all violations", "#FACC15")
@@ -62,7 +67,7 @@ left, right = st.columns([1.15, 1])
 
 with left:
     st.markdown("#### 🗺️ City-wide parking-congestion hotspots (PCIS)")
-    cell = lib.load("cell_pcis.parquet").sort_values("PCIS", ascending=False).head(900)
+    cell = lib.scored("cell_pcis.parquet").sort_values("PCIS", ascending=False).head(900)
     st.pydeck_chart(lib.deck([lib.hex_layer(cell, elevation=False)], zoom=10.6),
                     use_container_width=True)
     st.caption("Hex colour = Parking Congestion Impact Score (cyan→red). "
@@ -80,7 +85,7 @@ st.write("")
 b1, b2 = st.columns([1.4, 1])
 with b1:
     st.markdown("#### 🎯 Top priority enforcement zones (junctions)")
-    j = lib.load("junction_pcis.parquet").sort_values("PCIS", ascending=False).head(8)
+    j = lib.scored("junction_pcis.parquet").sort_values("PCIS", ascending=False).head(8)
     show = j[["rank", "junction_name", "PCIS", "violations", "tier", "reason"]].copy()
     show.columns = ["#", "Junction", "PCIS", "Violations", "Tier", "Why it ranks high"]
     st.dataframe(show, hide_index=True, use_container_width=True,

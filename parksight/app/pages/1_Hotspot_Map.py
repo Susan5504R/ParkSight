@@ -19,7 +19,9 @@ if not lib.artifacts_exist():
 lib.page_header("🗺️ AI Hotspot Map",
                 "Where illegal parking chokes the city — coloured by Parking Congestion Impact Score.")
 
-cell = lib.load("cell_pcis.parquet")
+lib.policy_banner()
+
+cell = lib.scored("cell_pcis.parquet")
 zones = lib.load("zones.parquet")
 
 # Pre-initialize session state so values survive page navigation
@@ -70,7 +72,7 @@ else:
 
 st.divider()
 st.markdown("### 🔎 Zone drill-down")
-jun = lib.load("junction_pcis.parquet").sort_values("PCIS", ascending=False)
+jun = lib.scored("junction_pcis.parquet").sort_values("PCIS", ascending=False)
 pick = st.selectbox("Inspect a junction hotspot",
                     jun["junction_name"].tolist(), key="map_junction")
 row = jun[jun["junction_name"] == pick].iloc[0]

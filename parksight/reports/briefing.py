@@ -29,7 +29,8 @@ TIER_COLOR = {"High": colors.HexColor("#7f1d1d"),
 
 
 def build_briefing(window="evening", top_n=10, for_date=None,
-                   grain="Police station", sort_by="Blind-Spot (de-biased)"):
+                   grain="Police station", sort_by="Blind-Spot (de-biased)",
+                   weights=None):
     for_date = for_date or (date.today())
     meta = json.loads((C.PROCESSED / "meta.json").read_text())
 
@@ -47,6 +48,18 @@ def build_briefing(window="evening", top_n=10, for_date=None,
         sort_col, slabel = "gap_score", "Gap"
 
     full = pd.read_parquet(C.PROCESSED / fname).copy()
+
+    # If the user applied a custom PCIS policy on the dashboard, re-score PCIS / tier
+    # from their weights so the briefing matches what's on screen (V/S/L/P/T are
+    # persisted per zone, so this is a cheap weighted sum — nothing hardcoded).
+    if weights and set("VSLPT").issubset(full.columns):
+        tot = sum(max(0.0, float(weights[k])) for k in "VSLPT") or 1.0
+        norm = {k: max(0.0, float(weights[k])) / tot for k in "VSLPT"}
+        raw = sum(norm[k] * full[k] for k in "VSLPT")
+        lo2, hi2 = raw.min(), raw.max()
+        full["PCIS"] = (100 * (raw - lo2) / (hi2 - lo2 + 1e-9)).round(1)
+        full["tier"] = pd.cut(full["PCIS"], bins=[-1, 33, 66, 101],
+                              labels=["Low", "Medium", "High"])
 
     # Window-focused ranking. The hour range comes from config (not hardcoded
     # here), and the share of each zone's violations that actually fall inside the
