@@ -89,7 +89,8 @@ def inject_css():
       div[data-testid="stMetric"]:hover{ transform:translateY(-2px); border-color:var(--hair2); }
       div[data-testid="stMetricValue"], div[data-testid="stMetricValue"] *{
         white-space:normal !important; overflow:visible !important; text-overflow:clip !important;
-        max-width:100% !important; line-height:1.15; word-break:break-word; overflow-wrap:anywhere; }
+        max-width:100% !important; line-height:1.15;
+        word-break:normal !important; overflow-wrap:break-word !important; hyphens:none !important; }
       div[data-testid="stMetricValue"]{ color:var(--txt);
         font-size:clamp(1.0rem, 0.55rem + 1.1vw, 1.8rem) !important; font-weight:700; }
       div[data-testid="stMetricLabel"], div[data-testid="stMetricLabel"] *{
