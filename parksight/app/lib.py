@@ -47,12 +47,16 @@ def inject_css():
       /* ---- native st.metric: card styling + NO truncation (fixes overflow) ---- */
       div[data-testid="stMetric"] { background:linear-gradient(160deg,#171F33,#10182A);
         border:1px solid #243049; border-radius:14px; padding:14px 16px;
-        transition:transform .15s ease, border-color .15s ease; overflow:hidden; }
+        transition:transform .15s ease, border-color .15s ease; overflow:visible; }
       div[data-testid="stMetric"]:hover { transform:translateY(-2px); border-color:#3B4A6B; }
-      div[data-testid="stMetricValue"], div[data-testid="stMetricValue"] > div {
+      /* target the value AND every descendant text node Streamlit may put nowrap on */
+      div[data-testid="stMetricValue"], div[data-testid="stMetricValue"] * {
         white-space:normal !important; overflow:visible !important; text-overflow:clip !important;
-        line-height:1.15; word-break:break-word; overflow-wrap:anywhere;
-        font-size:clamp(1.05rem, 0.6rem + 1.1vw, 1.85rem) !important; }
+        max-width:100% !important; line-height:1.15; word-break:break-word; overflow-wrap:anywhere; }
+      div[data-testid="stMetricValue"] {
+        font-size:clamp(1.0rem, 0.55rem + 1.1vw, 1.8rem) !important; }
+      div[data-testid="stMetricLabel"], div[data-testid="stMetricLabel"] * {
+        white-space:normal !important; overflow:visible !important; }
       div[data-testid="stMetricLabel"] p { color:#94A3B8; font-weight:600;
         text-transform:uppercase; letter-spacing:.04em; font-size:.72rem; }
 
