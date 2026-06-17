@@ -105,6 +105,5 @@ g1.metric("Forecast model MAE", mx.get("mae_model", "—"),
           f"{mx.get('improvement_pct', 0)}% better than baseline", delta_color="inverse")
 g2.metric("Distinct enforcement devices", f"{m.get('n_devices', 0):,}")
 g3.metric("Top hotspot station", m.get("top_station", "—"))
-st.caption("PCIS = Parking Congestion Impact Score = 100·(0.30·Volume + 0.20·Severity + "
-           "0.20·Location + 0.20·PeakOverlap + 0.10·Trend). A decision-support index, not "
-           "automated enforcement. Built on the official violation dataset only.")
+st.caption(f"{lib.pcis_formula_caption()}. A decision-support index, not automated "
+           "enforcement. Built on the official violation dataset only.")

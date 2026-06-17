@@ -8,6 +8,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import lib  # noqa: E402
+from parksight import scoring  # noqa: E402
 from parksight.reports.briefing import build_briefing  # noqa: E402
 
 st.set_page_config(page_title="ParkSight — Prioritize", page_icon=lib.FAVICON, layout="wide")
@@ -44,7 +45,7 @@ sort_col = ("blindspot_risk" if sort_by.startswith("Blind") else
             "PCIS" if sort_by.startswith("PCIS") else "gap_score")
 df = lib.scored(fname).sort_values(sort_col, ascending=False).copy()
 df["rank"] = range(1, len(df) + 1)
-df["units"] = (df["PCIS"] / 100 * 3).round().clip(lower=1).astype(int)
+df["units"] = scoring.recommended_units(df["PCIS"]).to_numpy()
 
 
 @st.cache_data(show_spinner=False)

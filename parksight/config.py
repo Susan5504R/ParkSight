@@ -51,6 +51,15 @@ OFFPEAK_WEIGHT = 0.30
 # --- PCIS component weights (UI-tunable defaults) ----------------------------
 PCIS_WEIGHTS = {"V": 0.30, "S": 0.20, "L": 0.20, "P": 0.20, "T": 0.10}
 
+# --- Shared scoring constants (single source of truth) -----------------------
+# Used by the ETL, the Streamlit app, the briefing PDF and the Copilot engine via
+# parksight.scoring, so none of them can drift from each other.
+TIER_BINS = [-1, 33, 66, 101]              # PCIS cut-points → Low / Medium / High
+TIER_LABELS = ["Low", "Medium", "High"]
+UNITS_PER_PCIS = 3                         # patrol units ≈ round(PCIS/100 · this), min 1
+DETERRENCE_ELASTICITY = 0.4                # fraction of an enforcement increase that
+                                           # converts to fewer violations (documented assumption)
+
 # --- Ground-truth anchor (expert face-validity set) --------------------------
 # The dataset has no traffic-flow sensor column, so we validate PCIS against an
 # EXPERT-LABELLED reference: well-known Bengaluru congestion landmarks vs. quiet

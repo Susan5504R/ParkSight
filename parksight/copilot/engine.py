@@ -22,14 +22,36 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from parksight import config as C  # noqa: E402
+from parksight import scoring  # noqa: E402
 
 CLAUDE_MODEL  = "claude-sonnet-4-6"    # fast + cheap; grounded execution keeps it accurate
 GEMINI_MODEL  = "gemini-1.5-flash"    # free-tier friendly fallback
+
+# Per-call context set by answer(): a custom PCIS policy + elasticity from the
+# dashboard, so the Copilot's numbers match the rest of the app instead of always
+# using the ETL defaults. Reset after every call (single-threaded Streamlit reruns).
+_CTX = {"weights": None, "elasticity": None}
 
 
 @lru_cache(maxsize=None)
 def _load(name):
     return pd.read_parquet(C.PROCESSED / name)
+
+
+def _scored(name):
+    """Load a grain file, re-scoring PCIS/tier from the active custom policy (if the
+    user applied one on the dashboard) so Copilot agrees with every other tab."""
+    df = _load(name).copy()
+    w = _CTX.get("weights")
+    if w and set("VSLPT").issubset(df.columns):
+        df, _ = scoring.recompute_pcis(df, w)
+        df["PCIS"] = df["PCIS_live"]
+        df["tier"] = scoring.assign_tier(df["PCIS"]).to_numpy()
+    return df
+
+
+def _elasticity():
+    return _CTX.get("elasticity") or C.DETERRENCE_ELASTICITY
 
 
 @lru_cache(maxsize=1)
@@ -41,7 +63,7 @@ def _meta():
 def top_zones(n=10, grain="junction"):
     f = {"junction": "junction_pcis.parquet", "station": "station_pcis.parquet",
          "zone": "zones.parquet"}.get(grain, "junction_pcis.parquet")
-    df = _load(f).copy()
+    df = _scored(f)
     name_col = ("junction_name" if grain == "junction"
                 else "police_station" if grain == "station" else "name")
     cols = [c for c in [name_col, "PCIS", "violations", "tier", "reason"] if c in df.columns]
@@ -55,7 +77,7 @@ def rank_at(position=1, grain="junction"):
     """Return the single zone at a specific rank position (e.g. 'the 12th area')."""
     f = {"junction": "junction_pcis.parquet", "station": "station_pcis.parquet",
          "zone": "zones.parquet"}.get(grain, "junction_pcis.parquet")
-    df = _load(f).sort_values("PCIS", ascending=False).reset_index(drop=True)
+    df = _scored(f).sort_values("PCIS", ascending=False).reset_index(drop=True)
     name_col = ("junction_name" if grain == "junction"
                 else "police_station" if grain == "station" else "name")
     pos = max(1, min(int(position), len(df)))
@@ -71,7 +93,7 @@ def rank_at(position=1, grain="junction"):
 
 
 def highest_congestion():
-    j = _load("junction_pcis.parquet").sort_values("PCIS", ascending=False)
+    j = _scored("junction_pcis.parquet").sort_values("PCIS", ascending=False)
     r = j.iloc[0]
     txt = (f"The single highest-impact parking hotspot is **{r['junction_name']}** "
            f"(PCIS {r['PCIS']}, {int(r['violations']):,} violations). "
@@ -95,8 +117,9 @@ def _allocate_units(scores, total):
 
 
 def _deploy_window(window):
-    return ("17:00–21:00 IST (evening peak)" if window == "evening"
-            else "08:00–11:00 IST (morning peak)")
+    key = "morning" if window == "morning" else "evening"
+    lo, hi, _ = C.PEAK_WINDOWS[key]
+    return f"{lo:02d}:00–{hi:02d}:00 IST ({key} peak)"
 
 
 def where_to_deploy(window="evening", n=8, units=None):
@@ -106,7 +129,7 @@ def where_to_deploy(window="evening", n=8, units=None):
     (blind_spot_deploy) corrects the evening enforcement gap and produces a
     *different* order on purpose. If `units` is given, that exact budget is split
     across the top stations in proportion to PCIS (sums to the budget)."""
-    st = _load("station_pcis.parquet").copy().sort_values("PCIS", ascending=False)
+    st = _scored("station_pcis.parquet").sort_values("PCIS", ascending=False)
     win = _deploy_window(window)
     if units:
         pool = st.head(min(len(st), max(int(units), n))).copy()
@@ -123,7 +146,7 @@ def where_to_deploy(window="evening", n=8, units=None):
         return txt, pool[cols].reset_index(drop=True)
     st = st.head(n).copy()
     st["recommended_window"] = win
-    st["units"] = (st["PCIS"] / 100 * 3).round().clip(lower=1).astype(int)
+    st["units"] = scoring.recommended_units(st["PCIS"]).to_numpy()
     txt = (f"Recommended deployment for the **{win}** window — these {n} stations rank highest by "
            f"**raw congestion impact (PCIS)**, sorted by the PCIS column below. Patrol units scale "
            f"with PCIS. *Tip: ask for the **de-biased** ranking to surface evening hotspots that "
@@ -138,7 +161,7 @@ def blind_spot_deploy(n=8, units=None):
 
     If `units` is given, the budget is split across the top stations in
     proportion to the Blind-Spot index (sums to the budget)."""
-    st = _load("station_pcis.parquet").copy()
+    st = _scored("station_pcis.parquet")
     if "blindspot_risk" not in st.columns:
         return where_to_deploy("evening", n, units)
     st = st.sort_values("blindspot_risk", ascending=False)
@@ -194,13 +217,13 @@ def offenders_near(area=None, n=10):
 
 def impact_if(delta_pct=20):
     """Scenario: extra enforcement in top zones → estimated violation reduction."""
-    st = _load("station_pcis.parquet").sort_values("PCIS", ascending=False).head(10)
-    # transparent elasticity assumption (documented): +1% enforcement → 0.4% fewer violations
-    elasticity = 0.4
+    st = _scored("station_pcis.parquet").sort_values("PCIS", ascending=False).head(10)
+    # transparent, documented elasticity (shared default; matches the Simulator slider)
+    elasticity = _elasticity()
     reduced = st["violations"].sum() * (delta_pct / 100) * elasticity
     txt = (f"**What-if:** increasing enforcement by **{delta_pct}%** in the top-10 PCIS "
            f"stations could prevent roughly **{int(reduced):,} violations** over a comparable "
-           f"period (assuming a 0.4 deterrence elasticity — a documented, tunable assumption). "
+           f"period (assuming a {elasticity:g} deterrence elasticity — a documented, tunable assumption). "
            f"That targets the {st['violations'].sum():,} violations these zones generate today.")
     return txt, st[["police_station", "PCIS", "violations"]].reset_index(drop=True)
 
@@ -260,8 +283,8 @@ def lookup_zone(name=None):
     if not name or not str(name).strip():
         return overview()
     name = str(name).strip()
-    j = _load("junction_pcis.parquet")
-    s = _load("station_pcis.parquet")
+    j = _scored("junction_pcis.parquet")
+    s = _scored("station_pcis.parquet")
     js, jr = _match_place(j, "junction_name", name)
     ss, sr = _match_place(s, "police_station", name)
 
@@ -428,9 +451,12 @@ def _execute(plan):
     return txt, tbl, {"intent": intent, "params": params}
 
 
-def answer(q, use_ai=True):
+def answer(q, use_ai=True, weights=None, elasticity=None):
     """Main entry. An AI layer (Claude → Gemini → rules) maps NL → structured plan;
-    the plan is always executed deterministically on real analytics."""
+    the plan is always executed deterministically on real analytics.
+
+    `weights`/`elasticity` let the Copilot page pass the dashboard's active custom
+    PCIS policy and deterrence assumption so answers match the rest of the app."""
     parser = "deterministic router"
     if use_ai:
         if os.getenv("ANTHROPIC_API_KEY"):
@@ -451,7 +477,11 @@ def answer(q, use_ai=True):
             plan = _rule_route(q)
     else:
         plan = _rule_route(q)
-    txt, tbl, used = _execute(plan)
+    _CTX["weights"], _CTX["elasticity"] = weights, elasticity
+    try:
+        txt, tbl, used = _execute(plan)
+    finally:
+        _CTX["weights"] = _CTX["elasticity"] = None
     return {"text": txt, "table": tbl, "map": None,
             "engine": f"{parser} → grounded analytics", "plan": used, "parser": parser}
 

@@ -7,6 +7,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import lib  # noqa: E402
+from parksight import scoring  # noqa: E402
 
 st.set_page_config(page_title="ParkSight — Simulator", page_icon=lib.FAVICON, layout="wide")
 lib.inject_css()
@@ -27,7 +28,7 @@ total_viol = st_df["violations"].sum()
 _default_sel = st_df["police_station"].head(5).tolist()
 if "sim_chosen"     not in st.session_state: st.session_state["sim_chosen"]     = _default_sel
 if "sim_delta"      not in st.session_state: st.session_state["sim_delta"]      = 25
-if "sim_elasticity" not in st.session_state: st.session_state["sim_elasticity"] = 0.4
+if "sim_elasticity" not in st.session_state: st.session_state["sim_elasticity"] = lib.C.DETERRENCE_ELASTICITY
 if "sim_units"      not in st.session_state: st.session_state["sim_units"]      = 8
 if "sim_objective"  not in st.session_state: st.session_state["sim_objective"]  = "Maximize impact coverage"
 
@@ -52,7 +53,8 @@ k[0].metric("Impact coverage", f"{coverage_pct:.0f}%",
             f"{len(chosen)} of {len(st_df)} stations")
 k[1].metric("Violations prevented", f"{prevented:,}", f"-{reduction_pct:.1f}%", delta_color="inverse")
 k[2].metric("Projected total", f"{new_total:,}", f"was {total_viol:,}", delta_color="off")
-k[3].metric("Patrol units suggested", f"{sum(max(1, round(p/100*3)) for p in sel['PCIS']):,}")
+k[3].metric("Patrol units suggested",
+            f"{int(scoring.recommended_units(sel['PCIS']).sum()) if len(sel) else 0:,}")
 
 st.progress(min(coverage_pct / 100, 1.0),
             text=f"Selected deployment covers {coverage_pct:.0f}% of the city's PCIS-weighted "

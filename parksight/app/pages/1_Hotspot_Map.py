@@ -9,6 +9,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import lib  # noqa: E402
+from parksight import scoring  # noqa: E402
 
 st.set_page_config(page_title="ParkSight — Hotspot Map", page_icon=lib.FAVICON, layout="wide")
 lib.inject_css()
@@ -87,7 +88,7 @@ with d1:
     cc[1].metric("Peak hour (IST)", f"{int(row['peak_hour']):02d}:00")
     cc[2].metric("Top violation", row["top_type"])
     st.info(f"**Why it ranks high:** {row['reason']}")
-    units = max(1, round(row["PCIS"] / 100 * 3))
+    units = scoring.recommended_units(row["PCIS"])
     st.success(f"**Recommendation:** deploy ~{units} patrol unit(s) during the "
                f"{int(row['peak_hour']):02d}:00 window; prioritise carriageway-blocking violations.")
 with d2:

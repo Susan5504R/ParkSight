@@ -12,6 +12,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from parksight import config as C  # noqa: E402
+from parksight import scoring  # noqa: E402
 
 from reportlab.lib import colors  # noqa: E402
 from reportlab.lib.pagesizes import A4  # noqa: E402
@@ -53,13 +54,9 @@ def build_briefing(window="evening", top_n=10, for_date=None,
     # from their weights so the briefing matches what's on screen (V/S/L/P/T are
     # persisted per zone, so this is a cheap weighted sum — nothing hardcoded).
     if weights and set("VSLPT").issubset(full.columns):
-        tot = sum(max(0.0, float(weights[k])) for k in "VSLPT") or 1.0
-        norm = {k: max(0.0, float(weights[k])) / tot for k in "VSLPT"}
-        raw = sum(norm[k] * full[k] for k in "VSLPT")
-        lo2, hi2 = raw.min(), raw.max()
-        full["PCIS"] = (100 * (raw - lo2) / (hi2 - lo2 + 1e-9)).round(1)
-        full["tier"] = pd.cut(full["PCIS"], bins=[-1, 33, 66, 101],
-                              labels=["Low", "Medium", "High"])
+        full, _ = scoring.recompute_pcis(full, weights)
+        full["PCIS"] = full["PCIS_live"]
+        full["tier"] = scoring.assign_tier(full["PCIS"]).to_numpy()
 
     # Window-focused ranking. The hour range comes from config (not hardcoded
     # here), and the share of each zone's violations that actually fall inside the
@@ -85,7 +82,7 @@ def build_briefing(window="evening", top_n=10, for_date=None,
         full["window_share"] = 1.0
     full["window_score"] = (full[sort_col].astype(float) * full["window_share"]).round(2)
     st = full.sort_values("window_score", ascending=False).head(top_n).copy()
-    st["units"] = (st["PCIS"] / 100 * 3).round().clip(lower=1).astype(int)
+    st["units"] = scoring.recommended_units(st["PCIS"]).to_numpy()
     off = (pd.read_parquet(C.PROCESSED / "offenders.parquet")
              .sort_values("violations", ascending=False).head(8))
     win = (f"{lo:02d}:00–{hi:02d}:00 IST "

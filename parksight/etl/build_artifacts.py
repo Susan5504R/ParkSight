@@ -27,6 +27,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from parksight import config as C  # noqa: E402
+from parksight import scoring  # noqa: E402
 
 warnings.filterwarnings("ignore")
 
@@ -225,12 +226,10 @@ def add_priority(agg):
     """tier + enforcement-gap + human-readable reason."""
     # enforcement presence proxy: distinct devices active during peak window
     agg = agg.copy()
-    agg["tier"] = pd.cut(agg["PCIS"], bins=[-1, 33, 66, 101],
-                         labels=["Low", "Medium", "High"])
+    agg["tier"] = scoring.assign_tier(agg["PCIS"]).to_numpy()
     # Enforcement-Gap: high predicted impact but low evening-peak enforcement presence.
-    # gap = norm(PCIS) - norm(evening enforcement share); rescaled 0-100 (high = under-enforced).
-    gap_raw = minmax(agg["PCIS"]) - minmax(agg.get("evening_share", pd.Series(0, index=agg.index)))
-    agg["gap_score"] = (100 * minmax(gap_raw)).round(1)
+    agg["gap_score"] = scoring.gap_score(
+        agg["PCIS"], agg.get("evening_share", pd.Series(0, index=agg.index))).to_numpy()
     med_v = agg["violations"].median()
     gap_hi = agg["gap_score"].quantile(0.75)
 

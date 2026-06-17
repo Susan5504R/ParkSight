@@ -9,6 +9,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from parksight import config as C  # noqa: E402
+from parksight import scoring  # noqa: E402
 
 # ---------------------------------------------------------------- theme
 ACCENT = "#6366F1"
@@ -385,19 +386,11 @@ def blind_spot_band(by_hour):
 def pcis_recompute(df, weights):
     """Re-score a pre-aggregated PCIS frame for an arbitrary weight vector.
 
-    `df` already holds per-zone V/S/L/P/T components (built once by the ETL and
-    cached), so this is a cheap vectorised weighted sum — NOT a re-group of the
-    raw 298k violations. `weights` is a dict V/S/L/P/T; it is normalised to a
-    convex combination (sum=1) so the score can never exceed the component scale,
-    then min-max stretched to a 0–100 display range. Returns (scored_df, norm)
-    where `norm` is the normalised weight dict actually applied."""
-    tot = sum(max(0.0, float(weights[k])) for k in "VSLPT") or 1.0
-    norm = {k: max(0.0, float(weights[k])) / tot for k in "VSLPT"}
-    raw = sum(norm[k] * df[k] for k in "VSLPT")
-    lo, hi = raw.min(), raw.max()
-    out = df.copy()
-    out["PCIS_live"] = (100 * (raw - lo) / (hi - lo + 1e-9)).round(1)
-    return out.sort_values("PCIS_live", ascending=False), norm
+    Thin wrapper around `parksight.scoring.recompute_pcis` (the single source of
+    truth shared with the ETL, briefing PDF and Copilot). `df` already holds
+    per-zone V/S/L/P/T components, so this is a cheap vectorised weighted sum —
+    NOT a re-group of the raw 298k violations. Returns (scored_df, norm)."""
+    return scoring.recompute_pcis(df, weights)
 
 
 # -------------------------------------------- app-wide custom PCIS policy
@@ -421,27 +414,21 @@ def custom_weights_active():
     return st.session_state.get("pcis_weights_active") is not None
 
 
-def _mm(s):
-    s = s.astype(float)
-    lo, hi = s.min(), s.max()
-    return (s - lo) / (hi - lo) if hi - lo > 1e-12 else s * 0.0
-
-
 def scored(name):
     """Load a *_pcis grain file, re-scoring PCIS / tier / units / gap_score / rank
     from the weights the user applied on the Impact·PCIS page. Until they click
     'Apply across app' (or for artifacts without V/S/L/P/T components), this returns
-    the ETL-default scoring unchanged — so behaviour is identical to `load()`."""
+    the ETL-default scoring unchanged — so behaviour is identical to `load()`. All
+    derivations go through parksight.scoring so they match the ETL / PDF / Copilot."""
     df = load(name).copy()
     if not custom_weights_active() or not set("VSLPT").issubset(df.columns):
         return df
-    df, _ = pcis_recompute(df, active_weights())   # adds PCIS_live (0-100, sorted)
+    df, _ = scoring.recompute_pcis(df, active_weights())   # adds PCIS_live (0-100, sorted)
     df["PCIS"] = df["PCIS_live"]
-    df["tier"] = pd.cut(df["PCIS"], bins=[-1, 33, 66, 101],
-                        labels=["Low", "Medium", "High"])
-    df["units"] = (df["PCIS"] / 100 * 3).round().clip(lower=1).astype(int)
+    df["tier"] = scoring.assign_tier(df["PCIS"]).to_numpy()
+    df["units"] = scoring.recommended_units(df["PCIS"]).to_numpy()
     if "evening_share" in df.columns:
-        df["gap_score"] = (100 * _mm(_mm(df["PCIS"]) - _mm(df["evening_share"]))).round(1)
+        df["gap_score"] = scoring.gap_score(df["PCIS"], df["evening_share"]).to_numpy()
     df = df.reset_index(drop=True)
     df["rank"] = range(1, len(df) + 1)
     return df
@@ -457,6 +444,16 @@ def policy_banner():
     st.info(f"⚙️ **Custom enforcement policy active** — {parts}. All scores below reflect "
             "your weighting (set on **Impact · PCIS**). Reset it there to restore the "
             "recommended weights.")
+
+
+def pcis_formula_caption():
+    """The PCIS formula string built from the *currently active* weights, so the
+    Home caption never contradicts an applied custom policy."""
+    w = active_weights()
+    tot = sum(w.values()) or 1.0
+    terms = " + ".join(f"{w[k] / tot:.2f}·{lbl}" for k, lbl in _COMP_LABELS)
+    tag = " (your custom policy)" if custom_weights_active() else ""
+    return f"PCIS = Parking Congestion Impact Score = 100·({terms}){tag}"
 
 
 @st.cache_data(show_spinner=False)

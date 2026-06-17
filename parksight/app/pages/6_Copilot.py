@@ -16,6 +16,8 @@ if not lib.artifacts_exist():
 lib.page_header("🤖 ParkSight Copilot",
                 "Ask in plain English — answers are computed from the data, never hallucinated.")
 
+lib.policy_banner()
+
 has_claude, has_gemini = lib.common_sidebar()
 has_key = has_claude or has_gemini
 
@@ -77,7 +79,10 @@ if prompt:
         st.markdown(prompt)
     with st.chat_message("assistant"):
         with st.spinner("Analysing the data…"):
-            res = engine.answer(prompt, use_ai=has_key)
+            _weights = lib.active_weights() if lib.custom_weights_active() else None
+            _elasticity = st.session_state.get("sim_elasticity")
+            res = engine.answer(prompt, use_ai=has_key,
+                                weights=_weights, elasticity=_elasticity)
         st.markdown(res["text"])
         if res["table"] is not None:
             st.dataframe(res["table"], hide_index=True, use_container_width=True)
