@@ -23,55 +23,102 @@ def inject_css():
     st.markdown("""
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-      html, body, [class*="css"], .stApp, button, input, textarea, select { font-family:'Inter',-apple-system,Segoe UI,Roboto,sans-serif; }
-      .stApp { background: radial-gradient(1200px 600px at 80% -10%, #141C30 0%, #0B0F1A 55%); }
-      section[data-testid="stSidebar"] { background: #0E1422; border-right: 1px solid #1F2937; }
-      h1,h2,h3 { color:#F8FAFC; letter-spacing:-0.015em; font-weight:700; }
-      .block-container{padding-top:2rem; max-width:1500px;}
 
-      /* ---- custom KPI cards ---- */
-      .ps-kpi { background:linear-gradient(160deg,#171F33,#10182A); border:1px solid #243049;
-                border-radius:16px; padding:16px 18px; height:100%;
-                transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease; }
-      .ps-kpi:hover { transform:translateY(-3px); border-color:#3B4A6B; box-shadow:0 10px 28px -12px #000; }
-      .ps-kpi .v { font-size:clamp(20px,1.4vw + 14px,30px); font-weight:700; color:#F8FAFC;
-                   line-height:1.12; word-break:break-word; }
-      .ps-kpi .l { font-size:12px; color:#94A3B8; text-transform:uppercase; letter-spacing:.06em; }
-      .ps-kpi .d { font-size:12px; margin-top:4px; }
-      .ps-badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:600; }
-      .ps-hero { background:linear-gradient(135deg,#3B1D6E33,#6366F133); border:1px solid #6366F155;
-                 border-radius:16px; padding:18px 22px; margin-bottom:8px; }
+      /* ===== cohesive palette ===== */
+      :root{
+        --bg:#0A0E18; --bg2:#0E1422; --panel:#141C2E; --panel2:#10182A;
+        --hair:rgba(148,163,184,.14); --hair2:rgba(99,102,241,.35);
+        --txt:#F1F5F9; --muted:#93A2B8;
+        --accent:#6366F1; --accent2:#818CF8; --cyan:#22D3EE;
+        --amber:#F59E0B; --red:#EF4444; --green:#22C55E;
+        --shadow:0 14px 34px -18px rgba(0,0,0,.85);
+        --grad:linear-gradient(135deg,var(--accent),var(--accent2));
+      }
+      html, body, [class*="css"], .stApp, button, input, textarea, select{
+        font-family:'Inter',-apple-system,Segoe UI,Roboto,sans-serif; }
+
+      /* layered backdrop: two soft accent glows over deep navy */
+      .stApp{ background:
+        radial-gradient(900px 480px at 82% -8%, rgba(99,102,241,.16), transparent 60%),
+        radial-gradient(800px 520px at -6% 8%, rgba(34,211,238,.08), transparent 55%),
+        var(--bg); }
+      .block-container{ padding-top:2rem; max-width:1500px; }
+      h1,h2,h3{ color:var(--txt); letter-spacing:-0.018em; font-weight:700; }
+      /* accent rule under section headers (h2 from page_header) */
+      .stMarkdown h2{ padding-bottom:.35rem; border-bottom:1px solid var(--hair);
+        margin-bottom:.4rem; }
+      a, a:visited{ color:var(--accent2); }
+      hr{ border-color:var(--hair) !important; }
+
+      /* ===== sidebar ===== */
+      section[data-testid="stSidebar"]{
+        background:linear-gradient(180deg,#0E1422,#0B1019); border-right:1px solid var(--hair); }
+      section[data-testid="stSidebar"] a{ border-radius:8px; }
+      section[data-testid="stSidebar"] [data-testid="stSidebarNav"] a:hover{
+        background:rgba(99,102,241,.10); }
+
+      /* ===== custom KPI cards (glass) ===== */
+      .ps-kpi{ position:relative; background:linear-gradient(160deg,rgba(23,31,51,.92),rgba(16,24,42,.92));
+        border:1px solid var(--hair); border-radius:16px; padding:16px 18px; height:100%;
+        backdrop-filter:blur(6px); box-shadow:var(--shadow);
+        transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease; overflow:hidden; }
+      .ps-kpi::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+        background:var(--grad); opacity:.85; }
+      .ps-kpi:hover{ transform:translateY(-3px); border-color:var(--hair2);
+        box-shadow:0 18px 40px -16px rgba(99,102,241,.45); }
+      .ps-kpi .v{ font-size:clamp(20px,1.4vw + 14px,30px); font-weight:700; color:var(--txt);
+        line-height:1.12; word-break:break-word; }
+      .ps-kpi .l{ font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; }
+      .ps-kpi .d{ font-size:12px; margin-top:4px; }
+
+      .ps-badge{ display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+      .ps-hero{ position:relative; background:
+        linear-gradient(135deg,rgba(99,102,241,.18),rgba(34,211,238,.07));
+        border:1px solid var(--hair2); border-radius:18px; padding:18px 22px 18px 26px;
+        margin-bottom:8px; box-shadow:var(--shadow); }
+      .ps-hero::before{ content:""; position:absolute; left:0; top:12px; bottom:12px; width:4px;
+        border-radius:4px; background:var(--grad); }
       .tier-High{background:#7f1d1d;color:#fecaca;} .tier-Medium{background:#78350f;color:#fed7aa;}
       .tier-Low{background:#064e3b;color:#a7f3d0;}
 
-      /* ---- native st.metric: card styling + NO truncation (fixes overflow) ---- */
-      div[data-testid="stMetric"] { background:linear-gradient(160deg,#171F33,#10182A);
-        border:1px solid #243049; border-radius:14px; padding:14px 16px;
-        transition:transform .15s ease, border-color .15s ease; overflow:visible; }
-      div[data-testid="stMetric"]:hover { transform:translateY(-2px); border-color:#3B4A6B; }
-      /* target the value AND every descendant text node Streamlit may put nowrap on */
-      div[data-testid="stMetricValue"], div[data-testid="stMetricValue"] * {
+      /* ===== native st.metric: glass card + NO truncation ===== */
+      div[data-testid="stMetric"]{ background:linear-gradient(160deg,rgba(23,31,51,.92),rgba(16,24,42,.92));
+        border:1px solid var(--hair); border-radius:14px; padding:14px 16px;
+        backdrop-filter:blur(6px); box-shadow:var(--shadow);
+        transition:transform .16s ease, border-color .16s ease; overflow:visible; }
+      div[data-testid="stMetric"]:hover{ transform:translateY(-2px); border-color:var(--hair2); }
+      div[data-testid="stMetricValue"], div[data-testid="stMetricValue"] *{
         white-space:normal !important; overflow:visible !important; text-overflow:clip !important;
         max-width:100% !important; line-height:1.15; word-break:break-word; overflow-wrap:anywhere; }
-      div[data-testid="stMetricValue"] {
-        font-size:clamp(1.0rem, 0.55rem + 1.1vw, 1.8rem) !important; }
-      div[data-testid="stMetricLabel"], div[data-testid="stMetricLabel"] * {
+      div[data-testid="stMetricValue"]{ color:var(--txt);
+        font-size:clamp(1.0rem, 0.55rem + 1.1vw, 1.8rem) !important; font-weight:700; }
+      div[data-testid="stMetricLabel"], div[data-testid="stMetricLabel"] *{
         white-space:normal !important; overflow:visible !important; }
-      div[data-testid="stMetricLabel"] p { color:#94A3B8; font-weight:600;
-        text-transform:uppercase; letter-spacing:.04em; font-size:.72rem; }
+      div[data-testid="stMetricLabel"] p{ color:var(--muted); font-weight:600;
+        text-transform:uppercase; letter-spacing:.05em; font-size:.72rem; }
+      div[data-testid="stMetricDelta"]{ font-size:.8rem; }
 
-      /* ---- buttons ---- */
-      .stButton > button, .stDownloadButton > button { border-radius:10px; border:1px solid #2C3A57;
-        background:#172036; color:#E2E8F0; font-weight:600; transition:all .15s ease; }
-      .stButton > button:hover, .stDownloadButton > button:hover { border-color:#6366F1;
-        color:#fff; background:#1D2740; box-shadow:0 6px 18px -10px #6366F1; }
+      /* ===== buttons ===== */
+      .stButton > button, .stDownloadButton > button{ border-radius:10px; border:1px solid var(--hair);
+        background:rgba(23,32,54,.85); color:#E2E8F0; font-weight:600; transition:all .16s ease; }
+      .stButton > button:hover, .stDownloadButton > button:hover{ border-color:transparent;
+        color:#fff; background:var(--grad); box-shadow:0 8px 22px -10px var(--accent); transform:translateY(-1px); }
+      .stButton > button:focus:not(:active){ border-color:var(--accent) !important; box-shadow:none; }
+      .stDownloadButton > button{ background:var(--grad); border-color:transparent; color:#fff; }
 
-      /* ---- containers: dataframes, expanders, tabs, inputs ---- */
-      div[data-testid="stDataFrame"] { border:1px solid #243049; border-radius:12px; overflow:hidden; }
-      div[data-testid="stExpander"] { border:1px solid #243049 !important; border-radius:12px; background:#10182A; }
-      .stTabs [data-baseweb="tab-list"] { gap:4px; }
-      .stTabs [data-baseweb="tab"] { border-radius:8px 8px 0 0; }
-      div[data-testid="stMetricDelta"] { font-size:.8rem; }
+      /* ===== containers ===== */
+      div[data-testid="stDataFrame"]{ border:1px solid var(--hair); border-radius:12px; overflow:hidden; }
+      div[data-testid="stExpander"]{ border:1px solid var(--hair) !important; border-radius:12px;
+        background:rgba(16,24,42,.6); backdrop-filter:blur(4px); }
+      div[data-testid="stExpander"] summary:hover{ color:var(--accent2); }
+      .stTabs [data-baseweb="tab-list"]{ gap:4px; border-bottom:1px solid var(--hair); }
+      .stTabs [data-baseweb="tab"]{ border-radius:8px 8px 0 0; }
+      .stTabs [aria-selected="true"]{ color:var(--accent2) !important; }
+      div[data-testid="stProgress"] > div > div > div{ background:var(--grad) !important; }
+      /* tidy scrollbars */
+      ::-webkit-scrollbar{ width:10px; height:10px; }
+      ::-webkit-scrollbar-thumb{ background:#243049; border-radius:8px; border:2px solid var(--bg); }
+      ::-webkit-scrollbar-thumb:hover{ background:#314062; }
     </style>""", unsafe_allow_html=True)
 
 
@@ -250,8 +297,8 @@ def style_fig(fig, height=300, title=None):
         font=dict(color="#CBD5E1", size=12),
         legend=dict(bgcolor="rgba(0,0,0,0)"),
     )
-    fig.update_xaxes(gridcolor="#1F2937", zeroline=False)
-    fig.update_yaxes(gridcolor="#1F2937", zeroline=False)
+    fig.update_xaxes(gridcolor="rgba(148,163,184,0.10)", zeroline=False)
+    fig.update_yaxes(gridcolor="rgba(148,163,184,0.10)", zeroline=False)
     return fig
 
 
