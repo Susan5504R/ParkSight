@@ -44,12 +44,17 @@ def indian_holidays(years):
 
 
 def make_features(df, holiday_set):
-    df = df.sort_values(["police_station", "date"]).copy()
+    # reset_index so every derived column aligns by POSITION, not by stale label:
+    # the recursive forecast appends future rows at the end, so after sorting the
+    # index is non-monotonic and label-based assignment would scramble the rolling
+    # features. A clean RangeIndex + grouped transforms keep windows within a
+    # station and correctly aligned.
+    df = df.sort_values(["police_station", "date"]).reset_index(drop=True).copy()
     g = df.groupby("police_station")["n"]
     df["lag1"] = g.shift(1); df["lag7"] = g.shift(7); df["lag14"] = g.shift(14)
     for w in (3, 7, 14, 28):
-        df[f"roll{w}"] = g.shift(1).rolling(w).mean().reset_index(0, drop=True)
-    df["ewma7"] = g.shift(1).ewm(span=7).mean().reset_index(0, drop=True)
+        df[f"roll{w}"] = g.transform(lambda s, w=w: s.shift(1).rolling(w).mean())
+    df["ewma7"] = g.transform(lambda s: s.shift(1).ewm(span=7).mean())
     df["dow"] = df["date"].dt.weekday
     df["is_weekend"] = (df["dow"] >= 5).astype(int)
     df["month"] = df["date"].dt.month
@@ -256,7 +261,7 @@ def main(source=None):
         trial = cv_eval(feat, feats + [c], spec, BASE_PARAMS)
         if trial[0] + 0.25 * trial[1] < cur_risk - 1e-3:
             feats.append(c); kept.append(c); cur_risk = trial[0] + 0.25 * trial[1]
-    print(f"[fcst] features kept (CV-gated): {kept or 'none — parsimony wins'}")
+    print(f"[fcst] features kept (CV-gated): {kept or 'none - parsimony wins'}")
 
     # 3) Optuna tuning gated by CV
     params = dict(BASE_PARAMS)
@@ -281,9 +286,9 @@ def main(source=None):
         tm = cv_eval(feat, feats, spec, tuned)
         if tm[0] + 0.25 * tm[1] < cur_risk - 1e-3:
             params = tuned; cur_risk = tm[0] + 0.25 * tm[1]
-            print(f"[fcst] Optuna improved CV → {tm[0]:.2f} (kept tuned params)")
+            print(f"[fcst] Optuna improved CV -> {tm[0]:.2f} (kept tuned params)")
         else:
-            print(f"[fcst] Optuna gave no CV gain ({tm[0]:.2f}) — kept defaults (anti-overfit)")
+            print(f"[fcst] Optuna gave no CV gain ({tm[0]:.2f}) - kept defaults (anti-overfit)")
     except Exception as e:  # noqa: BLE001
         print(f"[fcst] Optuna skipped: {type(e).__name__}")
 
@@ -314,7 +319,7 @@ def main(source=None):
     q90m = lgb.LGBMRegressor(objective="quantile", alpha=1 - ALPHA / 2, **params).fit(feat[feats], feat["n"])
     print(f"[fcst] Mondrian conformal Q={ {k: round(v,2) for k,v in Qby.items()} } "
           f"coverage {None if cov_raw is None else round(100*cov_raw)}%"
-          f"→{None if cov_cqr is None else round(100*cov_cqr)}% (target 80%)")
+          f"->{None if cov_cqr is None else round(100*cov_cqr)}% (target 80%)")
 
     clim = feat.groupby(["police_station", "dow"])["n"].mean(); gm = feat["n"].mean()
 

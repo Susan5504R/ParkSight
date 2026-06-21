@@ -29,7 +29,7 @@ enforcement *visibility*, not fewer violations — the precise gap the theme nam
 - **Forecast** — next-7-day prediction per station, **model chosen by rolling-origin cross-validation**
   (count-aware Blend log1p+MA-7, Optuna-tuned, CV-gated features), **Mondrian conformal** p10–p90
   intervals (coverage ~80%), hierarchical city total and a weekly view. Honest decision metrics:
-  ~14% better MAE than climatology, MASE 0.73 (beats seasonal-naive), day-ahead top-10 precision ~75%.
+  ~14% better MAE than climatology, MASE 0.73 (beats seasonal-naive), day-ahead top-10 precision ~73%.
 - **Prioritize** — ranked High/Med/Low deployment plan with reasons + a downloadable PDF briefing.
 - **Simulator** — What-If: choose zones, dial enforcement and deterrence, watch projected impact fall.
 - **AI Copilot** — plain-English Q&A grounded in the data (optional Claude NL understanding).
